@@ -1,0 +1,85 @@
+import { Link, useLocation } from 'react-router-dom';
+import { BookOpen, GraduationCap, Hand, Home, BarChart3 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+const NAV_ITEMS = [
+  { to: '/', label: 'Home', icon: Home },
+  { to: '/dictionary', label: 'Dictionary', icon: BookOpen },
+  { to: '/lessons', label: 'Lessons', icon: GraduationCap },
+  { to: '/practice', label: 'Practice', icon: Hand },
+  { to: '/progress', label: 'Progress', icon: BarChart3 },
+];
+
+export function Layout({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-lg"
+      >
+        Skip to main content
+      </a>
+
+      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="container mx-auto px-4 h-14 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 font-bold text-lg">
+            <Hand className="h-6 w-6 text-primary" aria-hidden="true" />
+            <span>SignFlow</span>
+          </Link>
+          <nav aria-label="Main navigation" className="hidden md:flex items-center gap-1">
+            {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+              <Link
+                key={to}
+                to={to}
+                className={cn(
+                  'inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                  location.pathname === to || (to !== '/' && location.pathname.startsWith(to))
+                    ? 'bg-secondary text-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50',
+                )}
+                aria-current={location.pathname === to ? 'page' : undefined}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+                {label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </header>
+
+      <main id="main-content" className="flex-1 container mx-auto px-4 py-6">
+        {children}
+      </main>
+
+      <nav
+        aria-label="Mobile navigation"
+        className="md:hidden sticky bottom-0 border-t border-border bg-background/95 backdrop-blur"
+      >
+        <div className="flex justify-around py-2">
+          {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+            <Link
+              key={to}
+              to={to}
+              className={cn(
+                'flex flex-col items-center gap-1 px-3 py-1 text-xs',
+                location.pathname === to || (to !== '/' && location.pathname.startsWith(to))
+                  ? 'text-primary'
+                  : 'text-muted-foreground',
+              )}
+              aria-current={location.pathname === to ? 'page' : undefined}
+            >
+              <Icon className="h-5 w-5" aria-hidden="true" />
+              {label}
+            </Link>
+          ))}
+        </div>
+      </nav>
+
+      <footer className="border-t border-border py-4 text-center text-xs text-muted-foreground hidden md:block">
+        SignFlow ASL — Learn with interactive 3D hands. Content for educational purposes.
+      </footer>
+    </div>
+  );
+}

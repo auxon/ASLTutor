@@ -1,0 +1,17 @@
+{
+  "name": "asl-3d-learning",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @asl/web",
+    "build": "npm run build -w @asl/sign-schema && npm run build -w @asl/web",
+    "lint": "npm run lint -w @asl/web",
+    "typecheck": "npm run typecheck -w @asl/sign-schema && npm run typecheck -w @asl/web"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
