@@ -1,15 +1,22 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const ASL_BASE_PATH = '/ASLTutor/';
+
 export default defineConfig({
+  base: ASL_BASE_PATH,
   plugins: [
     react(),
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: false,
       includeAssets: ['favicon.svg'],
       manifest: {
         name: 'SignFlow ASL',
@@ -18,15 +25,16 @@ export default defineConfig({
         theme_color: '#0f172a',
         background_color: '#0f172a',
         display: 'standalone',
-        start_url: '/',
+        start_url: ASL_BASE_PATH,
+        scope: ASL_BASE_PATH,
         icons: [
           {
-            src: '/pwa-192.png',
+            src: `${ASL_BASE_PATH}pwa-192.png`,
             sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: '/pwa-512.png',
+            src: `${ASL_BASE_PATH}pwa-512.png`,
             sizes: '512x512',
             type: 'image/png',
           },

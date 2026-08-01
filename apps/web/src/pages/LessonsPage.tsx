@@ -1,10 +1,11 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Clock, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { LessonRunner } from '@/components/lessons/LessonRunner';
 import { lessons } from '@/data/content';
 
 export function LessonsPage() {
+  const navigate = useNavigate();
   const { moduleId } = useParams<{ moduleId: string }>();
   const activeModule = moduleId
     ? lessons.modules.find((m) => m.id === moduleId)
@@ -15,7 +16,7 @@ export function LessonsPage() {
       <LessonRunner
         module={activeModule}
         onComplete={() => {
-          window.location.href = '/lessons';
+          navigate('/lessons');
         }}
       />
     );

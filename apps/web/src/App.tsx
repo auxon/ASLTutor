@@ -10,11 +10,12 @@ import { PracticePage } from '@/pages/PracticePage';
 import { ProgressPage } from '@/pages/ProgressPage';
 
 const queryClient = new QueryClient();
+const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter basename={routerBasename}>
         <Layout>
           <Routes>
             <Route path="/" element={<HomePage />} />

@@ -41,3 +41,20 @@ content/            # Content authoring (future Blender exports)
 ## License
 
 Educational demo. Hand models are procedurally generated for this project.
+
+## Deploy to Entangleit.com/ASLTutor
+
+The app is configured for subpath hosting at **`/ASLTutor/`**.
+
+```bash
+# Verify build
+./scripts/verify-subpath-build.sh
+
+# Merge into your Entangleit.com Cloudflare Pages publish directory
+./scripts/prepare-entangleit-deploy.sh /path/to/entangleit-site/public
+
+# Deploy (requires Cloudflare API token)
+npx wrangler pages deploy /path/to/entangleit-site/public --project-name=entangleit
+```
+
+See [deploy/CLOUDFLARE.md](deploy/CLOUDFLARE.md) for full instructions.

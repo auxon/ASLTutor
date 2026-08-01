@@ -1,0 +1,46 @@
+name: Deploy ASL to Cloudflare Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, cursor/asl-3d-learning-fa6e]
+    paths:
+      - 'apps/web/**'
+      - 'packages/sign-schema/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Verify subpath assets
+        run: grep -q '/ASLTutor/' apps/web/dist/index.html
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asltutor-dist
+          path: apps/web/dist/
+          retention-days: 7
+
+  # Uncomment and configure when Entangleit.com repo is available:
+  # deploy:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: asltutor-dist
+  #         path: asltutor-dist
+  #     - uses: cloudflare/wrangler-action@v3
+  #       with:
+  #         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  #         command: pages deploy asltutor-dist --project-name=entangleit
