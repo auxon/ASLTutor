@@ -5,10 +5,13 @@
 #   ./scripts/prepare-entangleit-deploy.sh [TARGET_DIR]
 #
 # If TARGET_DIR is provided (your Entangleit.com site publish root), copies
-# dist output to TARGET_DIR/ASLTutor/ and merges _redirects rules.
+# dist output to TARGET_DIR/ASLTutor/.
+#
+# Routing is handled by TARGET_DIR/_worker.js (Advanced Mode). This script
+# does NOT write catch-all _redirects rules that would fight the worker.
 #
 # Example:
-#   ./scripts/prepare-entangleit-deploy.sh ../entangleit-site/public
+#   ./scripts/prepare-entangleit-deploy.sh ~/entangleit/portfolio/public
 
 set -euo pipefail
 
@@ -41,23 +44,22 @@ if [[ -n "$TARGET" ]]; then
 
   echo "Copying to $ASL_DIR ..."
   mkdir -p "$ASL_DIR"
-  rm -rf "$ASL_DIR"/*
+  rm -rf "${ASL_DIR:?}"/*
   cp -a "$DIST/." "$ASL_DIR/"
 
-  REDIRECTS="$TARGET/_redirects"
-  MERGE="$ROOT/deploy/entangleit-redirects.snippet"
+  # Nested _redirects inside ASLTutor/ is unused by Pages (only root matters)
+  # and can confuse future merges — keep a note only.
+  cat > "$ASL_DIR/_redirects" <<'EOF'
+# Served under /ASLTutor/ — site routing is owned by public/_worker.js
+EOF
 
-  echo "Merging _redirects into $REDIRECTS ..."
-  if [[ -f "$REDIRECTS" ]]; then
-    # Prepend ASL rules if not already present
-    if ! grep -q '/ASLTutor/\*' "$REDIRECTS"; then
-      cat "$MERGE" "$REDIRECTS" > "$REDIRECTS.tmp"
-      mv "$REDIRECTS.tmp" "$REDIRECTS"
-    fi
+  if [[ -f "$TARGET/_worker.js" ]]; then
+    echo "Found _worker.js — skipping _redirects merge (Advanced Mode routing)."
   else
-    cp "$MERGE" "$REDIRECTS"
+    echo "WARNING: $TARGET/_worker.js missing." >&2
+    echo "Copy portfolio/static/_worker.js into the publish dir before deploying." >&2
   fi
 
   echo "Deploy bundle ready at $TARGET"
-  echo "Next: push to Git or run 'wrangler pages deploy $TARGET --project-name=YOUR_PROJECT'"
+  echo "Next: npx wrangler pages deploy $TARGET --project-name=richard-hein-portfolio --commit-dirty=true"
 fi

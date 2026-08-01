@@ -1,55 +1,72 @@
 # Cloudflare Pages — Entangleit.com + ASLTutor subpath
 
-Deploy the ASL app at `https://entangleit.com/ASLTutor/`.
+Live at **https://entangleit.com/ASLTutor/**
 
-## Quick deploy (same Pages project as Entangleit.com)
+## Architecture
 
-```bash
-# 1. Build and copy into your Entangleit site publish directory
-chmod +x scripts/prepare-entangleit-deploy.sh
-./scripts/prepare-entangleit-deploy.sh /path/to/entangleit-site/public
+| Piece | Detail |
+|-------|--------|
+| Pages project | `richard-hein-portfolio` |
+| Custom domain | `entangleit.com` |
+| Site repo | `/Users/rah/entangleit/portfolio` |
+| Publish dir | `public/` |
+| Routing | Advanced Mode `_worker.js` (not `_redirects` alone) |
 
-# 2. Deploy via Wrangler (replace project name)
-npx wrangler pages deploy /path/to/entangleit-site/public --project-name=entangleit
-```
+The portfolio site uses `public/_worker.js` to route:
 
-The script:
-- Builds with `base: /ASLTutor/`
-- Copies `apps/web/dist/*` → `public/ASLTutor/`
-- Merges SPA redirect rules into the site root `_redirects`
+- `/ASLTutor/*` → SignFlow ASL SPA (`/ASLTutor/index.html`)
+- everything else → portfolio SPA
 
-## Root `_redirects` (required on combined site)
+`_redirects` catch-all rewrites cannot reliably serve a nested SPA on Cloudflare Pages (Pages' default SPA fallback returns the **root** `index.html` with HTTP 200 for unknown paths).
 
-```
-/ASLTutor  /ASLTutor/  301
-/ASLTutor/*  /ASLTutor/index.html  200
-```
-
-See [deploy/entangleit-redirects.snippet](entangleit-redirects.snippet).
-
-## Standalone ASL-only deploy (separate Pages project)
-
-If the ASL app is deployed alone (e.g. preview URL), use:
+## Deploy
 
 ```bash
-npm run build
-npx wrangler pages deploy apps/web/dist --project-name=signflow-asl
+# From ASLTutor repo — build + copy into portfolio publish dir
+./scripts/prepare-entangleit-deploy.sh /Users/rah/entangleit/portfolio/public
+
+# From portfolio repo — publish to Cloudflare
+cd /Users/rah/entangleit/portfolio
+npx wrangler pages deploy public --project-name=richard-hein-portfolio --commit-dirty=true
 ```
 
-For production on `entangleit.com/ASLTutor`, you still need Option A (subfolder) or a Worker proxy (see plan).
+Or one-liner from ASLTutor:
+
+```bash
+./scripts/prepare-entangleit-deploy.sh /Users/rah/entangleit/portfolio/public \
+  && npx wrangler pages deploy /Users/rah/entangleit/portfolio/public \
+       --project-name=richard-hein-portfolio --commit-dirty=true
+```
+
+## Auth
+
+```bash
+npx wrangler login   # browser OAuth; tokens expire ~3 months
+npx wrangler whoami
+```
 
 ## Local verification
 
 ```bash
-npm run build
+./scripts/verify-subpath-build.sh
 npm run preview -w @asl/web
 # Open http://localhost:4173/ASLTutor/
 ```
 
 ## Post-deploy checks
 
-- [ ] `https://entangleit.com/ASLTutor/` loads
-- [ ] Refresh on `/ASLTutor/dictionary` returns 200 (not 404)
-- [ ] Network tab shows assets from `/ASLTutor/assets/`
-- [ ] Main site `/` unchanged
-- [ ] Purge Cloudflare cache for `/ASLTutor/*` if stale
+- [ ] https://entangleit.com/ASLTutor/
+- [ ] https://entangleit.com/ASLTutor/dictionary (hard refresh / deep link)
+- [ ] https://entangleit.com/ASLTutor/lessons/lesson-alphabet
+- [ ] Assets load from `/ASLTutor/assets/…`
+- [ ] https://entangleit.com/ still shows the portfolio
+- [ ] If HTML looks stale: Cloudflare Dashboard → Caching → Purge Everything
+
+## Important files (portfolio)
+
+| File | Role |
+|------|------|
+| `public/_worker.js` | Path routing for ASL + portfolio |
+| `public/ASLTutor/` | Built SignFlow output |
+| `public/_redirects` | Intentionally empty of catch-alls (worker owns routing) |
+| `wrangler.toml` | `name = "entangleit"` (Pages project name is `richard-hein-portfolio`) |
