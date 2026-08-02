@@ -7,6 +7,8 @@ on:
     paths:
       - 'apps/web/**'
       - 'packages/sign-schema/**'
+      - 'deploy/**'
+      - '.github/workflows/cloudflare-deploy.yml'
 
 jobs:
   build:
@@ -31,16 +33,61 @@ jobs:
           path: apps/web/dist/
           retention-days: 7
 
-  # Uncomment and configure when Entangleit.com repo is available:
-  # deploy:
-  #   needs: build
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/download-artifact@v4
-  #       with:
-  #         name: asltutor-dist
-  #         path: asltutor-dist
-  #     - uses: cloudflare/wrangler-action@v3
-  #       with:
-  #         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-  #         command: pages deploy asltutor-dist --project-name=entangleit
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # Requires repo secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
+    steps:
+      - name: Checkout ASLTutor (for deploy/_worker.js)
+        uses: actions/checkout@v4
+
+      - name: Download ASL build
+        uses: actions/download-artifact@v4
+        with:
+          name: asltutor-dist
+          path: asltutor-dist
+
+      - name: Checkout Entangleit portfolio
+        uses: actions/checkout@v4
+        with:
+          repository: auxon/entangleit
+          path: entangleit
+
+      - name: Assemble Pages publish dir
+        run: |
+          set -euo pipefail
+          PUBLISH=entangleit/portfolio/public
+          mkdir -p "$PUBLISH/ASLTutor"
+          rm -rf "${PUBLISH}/ASLTutor"/*
+          cp -a asltutor-dist/. "$PUBLISH/ASLTutor/"
+          cp deploy/_worker.js "$PUBLISH/_worker.js"
+          # Advanced Mode owns routing — remove catch-all that would fight the worker.
+          printf '# Routing owned by _worker.js (Advanced Mode)\n' > "$PUBLISH/_redirects"
+          printf '# Served under /ASLTutor/ — site routing is owned by public/_worker.js\n' \
+            > "$PUBLISH/ASLTutor/_redirects"
+          echo "Publish tree:"
+          find "$PUBLISH" -maxdepth 2 | sort | head -80
+
+      - name: Require Cloudflare secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN secret is not set on this repository."
+            echo "Create a Cloudflare API token with Pages Edit, then add secrets:"
+            echo "  CLOUDFLARE_API_TOKEN"
+            echo "  CLOUDFLARE_ACCOUNT_ID"
+            exit 1
+          fi
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::CLOUDFLARE_ACCOUNT_ID secret is not set on this repository."
+            exit 1
+          fi
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy entangleit/portfolio/public --project-name=richard-hein-portfolio --commit-dirty=true
