@@ -8,6 +8,7 @@ import {
   getTargetPoseForHandshape,
 } from '@/engine/pose-scorer';
 import {
+  closeHandTracker,
   detectHands,
   initHandTracker,
   isHandTrackerReady,
@@ -116,6 +117,7 @@ export function PracticeCamera({
   const [isActive, setIsActive] = useState(false);
   const [isReady, setIsReady] = useState(() => isHandTrackerReady());
   const [isTrackerLoading, setIsTrackerLoading] = useState(() => !isHandTrackerReady());
+  const [trackerDetail, setTrackerDetail] = useState('Starting hand tracker…');
   const [error, setError] = useState<string | null>(null);
   const [score, setScore] = useState<PoseScore | null>(null);
   const [facingMode, setFacingMode] = useState<FacingMode>('user');
@@ -137,7 +139,7 @@ export function PracticeCamera({
     targetPoseRef.current = targetPose;
   }, [targetPose]);
 
-  // Main-thread MediaPipe init (module workers break MediaPipe via importScripts).
+  // Main-thread MediaPipe init with self-hosted assets.
   useEffect(() => {
     let cancelled = false;
 
@@ -148,7 +150,14 @@ export function PracticeCamera({
     }
 
     setIsTrackerLoading(true);
-    void initHandTracker()
+    void initHandTracker((status, detail) => {
+      if (cancelled) return;
+      if (detail) setTrackerDetail(detail);
+      if (status === 'ready') {
+        setIsReady(true);
+        setIsTrackerLoading(false);
+      }
+    })
       .then(() => {
         if (cancelled) return;
         trackerErrorRef.current = null;
@@ -278,11 +287,19 @@ export function PracticeCamera({
   }, [startCamera, stopCamera]);
 
   const handleRetryTracker = useCallback(() => {
+    closeHandTracker();
     trackerErrorRef.current = null;
     setError(null);
     setIsReady(false);
     setIsTrackerLoading(true);
-    void initHandTracker()
+    setTrackerDetail('Retrying hand tracker…');
+    void initHandTracker((status, detail) => {
+      if (detail) setTrackerDetail(detail);
+      if (status === 'ready') {
+        setIsReady(true);
+        setIsTrackerLoading(false);
+      }
+    })
       .then(() => {
         trackerErrorRef.current = null;
         setIsReady(true);
@@ -350,9 +367,7 @@ export function PracticeCamera({
       )}
 
       {isTrackerLoading && !error && (
-        <p className="text-sm text-muted-foreground">
-          Loading hand tracker… (first load downloads ~8MB model)
-        </p>
+        <p className="text-sm text-muted-foreground">{trackerDetail}</p>
       )}
 
       <div className="flex gap-2 flex-wrap">

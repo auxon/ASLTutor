@@ -41,27 +41,22 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,wasm}'],
+        // Do not precache multi‑MB mediapipe wasm/model — runtime cache instead.
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest}'],
+        globIgnores: ['**/mediapipe/**'],
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/ASLTutor\/mediapipe\//],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/@mediapipe\/tasks-vision/,
+            urlPattern: ({ url }) => url.pathname.includes('/mediapipe/'),
             handler: 'CacheFirst',
             options: {
-              cacheName: 'mediapipe-cache',
+              cacheName: 'mediapipe-local-cache',
               expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 30,
-              },
-            },
-          },
-          {
-            urlPattern:
-              /^https:\/\/storage\.googleapis\.com\/mediapipe-models\/hand_landmarker\//,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'mediapipe-model-cache',
-              expiration: {
-                maxEntries: 4,
+                maxEntries: 12,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
               },
             },
@@ -74,9 +69,6 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
-  },
-  worker: {
-    format: 'es',
   },
   optimizeDeps: {
     exclude: ['@mediapipe/tasks-vision'],

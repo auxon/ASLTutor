@@ -8,3 +8,5 @@ dist
 coverage
 *.log
 deploy/staging/
+.cache/
+apps/web/public/mediapipe/
