@@ -54,6 +54,18 @@ export default defineConfig({
               },
             },
           },
+          {
+            urlPattern:
+              /^https:\/\/storage\.googleapis\.com\/mediapipe-models\/hand_landmarker\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'mediapipe-model-cache',
+              expiration: {
+                maxEntries: 4,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
         ],
       },
     }),

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Landmark3D, PoseScore } from '@/engine/pose-scorer';
+import type { FlatHandPose } from '@/engine/hand-poses';
 import {
   scorePose,
   smoothLandmarks,
@@ -16,6 +17,73 @@ interface PracticeCameraProps {
   className?: string;
 }
 
+type FacingMode = 'user' | 'environment';
+
+function mapCameraError(err: unknown): string {
+  if (typeof window !== 'undefined' && !window.isSecureContext) {
+    return 'Camera requires a secure connection (HTTPS).';
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    return 'Camera is not supported in this browser.';
+  }
+  if (!(err instanceof Error)) {
+    return 'Camera access denied. Please allow camera access to practice.';
+  }
+  switch (err.name) {
+    case 'NotAllowedError':
+    case 'PermissionDeniedError':
+      return 'Camera permission denied. Allow camera access in your browser settings and try again.';
+    case 'NotFoundError':
+    case 'DevicesNotFoundError':
+      return 'No camera found on this device.';
+    case 'NotReadableError':
+    case 'TrackStartError':
+      return 'Camera is in use by another app. Close it and try again.';
+    case 'OverconstrainedError':
+    case 'ConstraintNotSatisfiedError':
+      return 'Could not match the requested camera settings. Try switching cameras.';
+    case 'SecurityError':
+      return 'Camera access blocked by the browser. Use HTTPS and allow camera permission.';
+    case 'AbortError':
+      return 'Camera start was interrupted. Please try again.';
+    default:
+      return err.message || 'Camera access denied. Please allow camera access to practice.';
+  }
+}
+
+async function requestCameraStream(facingMode: FacingMode): Promise<MediaStream> {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error('Camera is not supported in this browser.');
+  }
+  if (!window.isSecureContext) {
+    throw new Error('Camera requires a secure connection (HTTPS).');
+  }
+
+  const preferred: MediaStreamConstraints = {
+    video: {
+      facingMode: { ideal: facingMode },
+      width: { ideal: 640 },
+      height: { ideal: 480 },
+    },
+    audio: false,
+  };
+
+  try {
+    return await navigator.mediaDevices.getUserMedia(preferred);
+  } catch (err) {
+    const name = err instanceof Error ? err.name : '';
+    if (
+      name === 'OverconstrainedError' ||
+      name === 'ConstraintNotSatisfiedError' ||
+      name === 'NotFoundError' ||
+      name === 'DevicesNotFoundError'
+    ) {
+      return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    }
+    throw err;
+  }
+}
+
 export function PracticeCamera({
   targetHandshape,
   onScore,
@@ -28,16 +96,45 @@ export function PracticeCamera({
   const prevLandmarksRef = useRef<Landmark3D[] | null>(null);
   const rafRef = useRef<number>(0);
   const lastScoreTimeRef = useRef(0);
+  const inFlightRef = useRef(false);
+  const processErrorCountRef = useRef(0);
+  const isReadyRef = useRef(false);
+
+  const onScoreRef = useRef(onScore);
+  const facingModeRef = useRef<FacingMode>('user');
+  const targetPoseRef = useRef<FlatHandPose>(getTargetPoseForHandshape(targetHandshape));
 
   const [isActive, setIsActive] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [score, setScore] = useState<PoseScore | null>(null);
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [facingMode, setFacingMode] = useState<FacingMode>('user');
+  const [canUseCamera] = useState(
+    () => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia,
+  );
 
   const targetPose = getTargetPoseForHandshape(targetHandshape);
 
   useEffect(() => {
+    onScoreRef.current = onScore;
+  }, [onScore]);
+
+  useEffect(() => {
+    facingModeRef.current = facingMode;
+  }, [facingMode]);
+
+  useEffect(() => {
+    targetPoseRef.current = targetPose;
+  }, [targetPose]);
+
+  useEffect(() => {
+    isReadyRef.current = isReady;
+  }, [isReady]);
+
+  useEffect(() => {
+    setIsReady(false);
+    isReadyRef.current = false;
+
     const worker = new Worker(
       new URL('../../workers/hand-tracker.worker.ts', import.meta.url),
       { type: 'module' },
@@ -47,10 +144,21 @@ export function PracticeCamera({
     worker.onmessage = (event) => {
       const data = event.data;
       if (data.type === 'ready') {
+        isReadyRef.current = true;
         setIsReady(true);
+        processErrorCountRef.current = 0;
       } else if (data.type === 'error') {
-        setError(data.message);
+        inFlightRef.current = false;
+        // Fatal init failures always surface; detection blips only after repeated failures.
+        if (data.fatal || processErrorCountRef.current >= 5) {
+          setError(data.message);
+        } else {
+          processErrorCountRef.current += 1;
+        }
       } else if (data.type === 'landmarks') {
+        inFlightRef.current = false;
+        processErrorCountRef.current = 0;
+
         const primary = extractPrimaryHandLandmarks(data.hands);
         if (!primary) return;
 
@@ -60,9 +168,13 @@ export function PracticeCamera({
         const now = performance.now();
         if (now - lastScoreTimeRef.current > 200) {
           lastScoreTimeRef.current = now;
-          const result = scorePose(smoothed, targetPose, facingMode === 'user');
+          const result = scorePose(
+            smoothed,
+            targetPoseRef.current,
+            facingModeRef.current === 'user',
+          );
           setScore(result);
-          onScore?.(result);
+          onScoreRef.current?.(result);
         }
       }
     };
@@ -71,45 +183,56 @@ export function PracticeCamera({
 
     return () => {
       worker.terminate();
+      workerRef.current = null;
       cancelAnimationFrame(rafRef.current);
+      inFlightRef.current = false;
     };
-  }, [targetPose, facingMode, onScore]);
+  }, []);
 
   const stopCamera = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
+    rafRef.current = 0;
+    inFlightRef.current = false;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     setIsActive(false);
   }, []);
 
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (mode: FacingMode = facingModeRef.current) => {
     setError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode,
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-        },
-        audio: false,
-      });
+      // Stop any existing tracks before requesting a new stream (camera switch).
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+
+      const stream = await requestCameraStream(mode);
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+      const video = videoRef.current;
+      if (video) {
+        video.srcObject = stream;
+        try {
+          await video.play();
+        } catch (playErr) {
+          stream.getTracks().forEach((t) => t.stop());
+          streamRef.current = null;
+          video.srcObject = null;
+          throw playErr;
+        }
       }
       setIsActive(true);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Camera access denied. Please allow camera access to practice.',
-      );
+      setIsActive(false);
+      setError(mapCameraError(err));
     }
-  }, [facingMode]);
+  }, []);
 
   useEffect(() => {
     if (!isActive || !isReady || !videoRef.current || !workerRef.current) return;
+
+    inFlightRef.current = false;
 
     const processFrame = () => {
       const video = videoRef.current;
@@ -119,23 +242,51 @@ export function PracticeCamera({
         return;
       }
 
-      createImageBitmap(video).then((bitmap) => {
-        worker.postMessage(
-          { type: 'process', bitmap, timestamp: performance.now() },
-          [bitmap],
-        );
-      });
+      if (!inFlightRef.current) {
+        inFlightRef.current = true;
+        createImageBitmap(video)
+          .then((bitmap) => {
+            if (!workerRef.current) {
+              bitmap.close();
+              inFlightRef.current = false;
+              return;
+            }
+            workerRef.current.postMessage(
+              { type: 'process', bitmap, timestamp: performance.now() },
+              [bitmap],
+            );
+          })
+          .catch(() => {
+            // Transient mobile Chrome failures (e.g. frame not ready) — retry next rAF.
+            inFlightRef.current = false;
+          });
+      }
 
       rafRef.current = requestAnimationFrame(processFrame);
     };
 
     rafRef.current = requestAnimationFrame(processFrame);
-    return () => cancelAnimationFrame(rafRef.current);
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+      inFlightRef.current = false;
+    };
   }, [isActive, isReady]);
 
   useEffect(() => {
     return () => stopCamera();
   }, [stopCamera]);
+
+  const handleSwitchCamera = useCallback(() => {
+    const next: FacingMode = facingModeRef.current === 'user' ? 'environment' : 'user';
+    const wasActive = !!streamRef.current;
+    facingModeRef.current = next;
+    setFacingMode(next);
+    stopCamera();
+    if (wasActive) {
+      void startCamera(next);
+    }
+  }, [startCamera, stopCamera]);
 
   const scoreColor =
     score && score.overall >= 0.75
@@ -152,6 +303,7 @@ export function PracticeCamera({
           className={cn('w-full h-full object-cover', facingMode === 'user' && 'scale-x-[-1]')}
           playsInline
           muted
+          autoPlay
           aria-label="Webcam feed for sign practice"
         />
         <canvas ref={canvasRef} className="hidden" />
@@ -182,9 +334,13 @@ export function PracticeCamera({
         </div>
       )}
 
+      {isActive && !isReady && !error && (
+        <p className="text-sm text-muted-foreground">Loading hand tracker…</p>
+      )}
+
       <div className="flex gap-2 flex-wrap">
         {!isActive ? (
-          <Button onClick={startCamera} disabled={!isReady}>
+          <Button onClick={() => void startCamera()} disabled={!canUseCamera}>
             <Camera className="h-4 w-4 mr-2" />
             Start Camera
           </Button>
@@ -194,14 +350,7 @@ export function PracticeCamera({
             Stop Camera
           </Button>
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            stopCamera();
-            setFacingMode((f) => (f === 'user' ? 'environment' : 'user'));
-          }}
-        >
+        <Button variant="outline" size="sm" onClick={handleSwitchCamera} disabled={!canUseCamera}>
           Switch camera
         </Button>
       </div>
