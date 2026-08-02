@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
 @theme {
@@ -46,5 +47,42 @@
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
     }
+  }
+}
+
+@layer utilities {
+  .landing-gradient {
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgb(56 189 248 / 0.18), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 0%, rgb(129 140 248 / 0.12), transparent),
+      radial-gradient(ellipse 50% 30% at 0% 100%, rgb(56 189 248 / 0.08), transparent);
+  }
+
+  .landing-grid {
+    background-image:
+      linear-gradient(rgb(51 65 85 / 0.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(51 65 85 / 0.3) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 20%, transparent 70%);
+  }
+
+  .landing-glow {
+    box-shadow:
+      0 0 80px rgb(56 189 248 / 0.15),
+      0 0 120px rgb(129 140 248 / 0.08);
+  }
+
+  @keyframes landing-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+
+  .animate-landing-float {
+    animation: landing-float 6s ease-in-out infinite;
   }
 }
