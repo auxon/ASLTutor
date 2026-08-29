@@ -6,8 +6,14 @@ import {
   extractPrimaryHandLandmarks,
   getTargetPoseForHandshape,
 } from '@/engine/pose-scorer';
+import {
+  detectHands,
+  errorMessage,
+  loadHandLandmarker,
+  type HandLandmarker,
+} from '@/engine/hand-tracker';
 import { cn } from '@/lib/utils';
-import { Camera, CameraOff, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Camera, CameraOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 interface PracticeCameraProps {
@@ -22,12 +28,15 @@ export function PracticeCamera({
   className,
 }: PracticeCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const workerRef = useRef<Worker | null>(null);
+  const landmarkerRef = useRef<HandLandmarker | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const prevLandmarksRef = useRef<Landmark3D[] | null>(null);
-  const rafRef = useRef<number>(0);
+  const rafRef = useRef(0);
   const lastScoreTimeRef = useRef(0);
+  const lastDetectTimeRef = useRef(0);
+  const targetPoseRef = useRef(getTargetPoseForHandshape(targetHandshape));
+  const onScoreRef = useRef(onScore);
+  const facingModeRef = useRef<'user' | 'environment'>('user');
 
   const [isActive, setIsActive] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -36,95 +45,102 @@ export function PracticeCamera({
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
 
   const targetPose = getTargetPoseForHandshape(targetHandshape);
+  targetPoseRef.current = targetPose;
+  onScoreRef.current = onScore;
+  facingModeRef.current = facingMode;
 
   useEffect(() => {
-    const worker = new Worker(
-      new URL('../../workers/hand-tracker.worker.ts', import.meta.url),
-      { type: 'module' },
-    );
-    workerRef.current = worker;
+    let cancelled = false;
+    setIsReady(false);
 
-    worker.onmessage = (event) => {
-      const data = event.data;
-      if (data.type === 'ready') {
+    loadHandLandmarker()
+      .then((landmarker) => {
+        if (cancelled) return;
+        landmarkerRef.current = landmarker;
         setIsReady(true);
-      } else if (data.type === 'error') {
-        setError(data.message);
-      } else if (data.type === 'landmarks') {
-        const primary = extractPrimaryHandLandmarks(data.hands);
-        if (!primary) return;
-
-        const smoothed = smoothLandmarks(primary, prevLandmarksRef.current, 0.3);
-        prevLandmarksRef.current = smoothed;
-
-        const now = performance.now();
-        if (now - lastScoreTimeRef.current > 200) {
-          lastScoreTimeRef.current = now;
-          const result = scorePose(smoothed, targetPose, facingMode === 'user');
-          setScore(result);
-          onScore?.(result);
-        }
-      }
-    };
-
-    worker.postMessage({ type: 'init' });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(errorMessage(err) || 'Failed to load the hand tracker.');
+      });
 
     return () => {
-      worker.terminate();
-      cancelAnimationFrame(rafRef.current);
+      cancelled = true;
     };
-  }, [targetPose, facingMode, onScore]);
+  }, []);
 
   const stopCamera = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
+    rafRef.current = 0;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     setIsActive(false);
   }, []);
 
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (mode: 'user' | 'environment') => {
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode,
+          facingMode: mode,
           width: { ideal: 640 },
           height: { ideal: 480 },
         },
         audio: false,
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+      const video = videoRef.current;
+      if (!video) {
+        stream.getTracks().forEach((t) => t.stop());
+        throw new Error('Video element is not ready.');
       }
+      video.srcObject = stream;
+      video.setAttribute('playsinline', 'true');
+      await video.play();
       setIsActive(true);
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Camera access denied. Please allow camera access to practice.',
+        errorMessage(err) || 'Camera access denied. Please allow camera access to practice.',
       );
     }
-  }, [facingMode]);
+  }, []);
 
   useEffect(() => {
-    if (!isActive || !isReady || !videoRef.current || !workerRef.current) return;
+    if (!isActive || !isReady) return;
 
     const processFrame = () => {
       const video = videoRef.current;
-      const worker = workerRef.current;
-      if (!video || !worker || video.readyState < 2) {
+      const landmarker = landmarkerRef.current;
+      if (!video || !landmarker) {
         rafRef.current = requestAnimationFrame(processFrame);
         return;
       }
 
-      createImageBitmap(video).then((bitmap) => {
-        worker.postMessage(
-          { type: 'process', bitmap, timestamp: performance.now() },
-          [bitmap],
-        );
-      });
+      const now = performance.now();
+      if (now - lastDetectTimeRef.current >= 66) {
+        lastDetectTimeRef.current = now;
+        try {
+          const hands = detectHands(landmarker, video, now);
+          const primary = extractPrimaryHandLandmarks(hands);
+          if (primary) {
+            const smoothed = smoothLandmarks(primary, prevLandmarksRef.current, 0.3);
+            prevLandmarksRef.current = smoothed;
+
+            if (now - lastScoreTimeRef.current > 200) {
+              lastScoreTimeRef.current = now;
+              const result = scorePose(
+                smoothed,
+                targetPoseRef.current,
+                facingModeRef.current === 'user',
+              );
+              setScore(result);
+              onScoreRef.current?.(result);
+            }
+          }
+        } catch {
+          // First VIDEO frames and duplicate timestamps can throw; skip the frame.
+        }
+      }
 
       rafRef.current = requestAnimationFrame(processFrame);
     };
@@ -152,15 +168,21 @@ export function PracticeCamera({
           className={cn('w-full h-full object-cover', facingMode === 'user' && 'scale-x-[-1]')}
           playsInline
           muted
+          autoPlay
           aria-label="Webcam feed for sign practice"
         />
-        <canvas ref={canvasRef} className="hidden" />
 
         {!isActive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card/80">
-            <Camera className="h-10 w-10 text-muted-foreground" />
+            {isReady ? (
+              <Camera className="h-10 w-10 text-muted-foreground" />
+            ) : (
+              <Loader2 className="h-10 w-10 text-muted-foreground animate-spin" />
+            )}
             <p className="text-sm text-muted-foreground text-center px-4">
-              Enable your camera to practice signing &ldquo;{targetHandshape}&rdquo;
+              {isReady
+                ? `Enable your camera to practice signing “${targetHandshape}”`
+                : 'Loading hand tracker…'}
             </p>
           </div>
         )}
@@ -184,7 +206,7 @@ export function PracticeCamera({
 
       <div className="flex gap-2 flex-wrap">
         {!isActive ? (
-          <Button onClick={startCamera} disabled={!isReady}>
+          <Button onClick={() => void startCamera(facingMode)} disabled={!isReady}>
             <Camera className="h-4 w-4 mr-2" />
             Start Camera
           </Button>
@@ -198,8 +220,10 @@ export function PracticeCamera({
           variant="outline"
           size="sm"
           onClick={() => {
+            const next = facingMode === 'user' ? 'environment' : 'user';
+            setFacingMode(next);
             stopCamera();
-            setFacingMode((f) => (f === 'user' ? 'environment' : 'user'));
+            if (isActive) void startCamera(next);
           }}
         >
           Switch camera
