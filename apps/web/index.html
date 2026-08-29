@@ -8,6 +8,24 @@
     <meta name="theme-color" content="#0f172a" />
     <link rel="apple-touch-icon" href="/pwa-192.png" />
     <title>SignFlow — Learn ASL with 3D Hands</title>
+    <!-- signflow-build v6 -->
+    <script>
+      (function () {
+        try {
+          if (!('serviceWorker' in navigator)) return;
+          navigator.serviceWorker.getRegistrations().then(function (regs) {
+            regs.forEach(function (reg) {
+              var url =
+                (reg.active && reg.active.scriptURL) ||
+                (reg.waiting && reg.waiting.scriptURL) ||
+                (reg.installing && reg.installing.scriptURL) ||
+                '';
+              if (/\/sw\.js$/.test(url)) void reg.unregister();
+            });
+          });
+        } catch (err) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

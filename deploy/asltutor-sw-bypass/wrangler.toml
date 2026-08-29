@@ -1,0 +1,8 @@
+name = "asltutor-sw-bypass"
+main = "index.js"
+compatibility_date = "2025-03-01"
+account_id = "4fce158a1a762f052c33df97d0799b63"
+workers_dev = false
+routes = [
+  { pattern = "entangleit.com/ASLTutor/sw.js", zone_name = "entangleit.com" }
+]

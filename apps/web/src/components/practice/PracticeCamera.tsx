@@ -3,18 +3,67 @@ import type { Landmark3D, PoseScore } from '@/engine/pose-scorer';
 import {
   scorePose,
   smoothLandmarks,
-  extractPrimaryHandLandmarks,
   getTargetPoseForHandshape,
 } from '@/engine/pose-scorer';
 import {
   detectHands,
   errorMessage,
   loadHandLandmarker,
+  type DetectedHand,
   type HandLandmarker,
 } from '@/engine/hand-tracker';
 import { cn } from '@/lib/utils';
 import { Camera, CameraOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+
+const HAND_CONNECTIONS: Array<[number, number]> = [
+  [0, 1], [1, 2], [2, 3], [3, 4],
+  [0, 5], [5, 6], [6, 7], [7, 8],
+  [0, 9], [9, 10], [10, 11], [11, 12],
+  [0, 13], [13, 14], [14, 15], [15, 16],
+  [0, 17], [17, 18], [18, 19], [19, 20],
+  [5, 9], [9, 13], [13, 17],
+];
+
+function palmWidth(lms: Landmark3D[]): number {
+  if (lms.length < 18) return 0;
+  const a = lms[5];
+  const b = lms[17];
+  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+}
+
+function pickPrimary(hands: DetectedHand[]): DetectedHand | null {
+  if (hands.length === 0) return null;
+  return hands.reduce((best, hand) =>
+    palmWidth(hand.image) > palmWidth(best.image) ? hand : best,
+  );
+}
+
+function drawHand(
+  ctx: CanvasRenderingContext2D,
+  hand: Landmark3D[],
+  width: number,
+  height: number,
+) {
+  ctx.clearRect(0, 0, width, height);
+  if (hand.length < 21) return;
+  ctx.strokeStyle = 'rgba(56, 189, 248, 1)';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (const [a, b] of HAND_CONNECTIONS) {
+    ctx.beginPath();
+    ctx.moveTo(hand[a].x * width, hand[a].y * height);
+    ctx.lineTo(hand[b].x * width, hand[b].y * height);
+    ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(250, 250, 250, 1)';
+  for (const p of hand) {
+    ctx.beginPath();
+    ctx.arc(p.x * width, p.y * height, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
 
 interface PracticeCameraProps {
   targetHandshape: string;
@@ -28,6 +77,7 @@ export function PracticeCamera({
   className,
 }: PracticeCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const overlayRef = useRef<HTMLCanvasElement>(null);
   const landmarkerRef = useRef<HandLandmarker | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const prevLandmarksRef = useRef<Landmark3D[] | null>(null);
@@ -42,7 +92,9 @@ export function PracticeCamera({
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [score, setScore] = useState<PoseScore | null>(null);
+  const [handVisible, setHandVisible] = useState(false);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const handVisibleRef = useRef(false);
 
   const targetPose = getTargetPoseForHandshape(targetHandshape);
   targetPoseRef.current = targetPose;
@@ -74,6 +126,8 @@ export function PracticeCamera({
     rafRef.current = 0;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    handVisibleRef.current = false;
+    setHandVisible(false);
     setIsActive(false);
   }, []);
 
@@ -121,9 +175,27 @@ export function PracticeCamera({
         lastDetectTimeRef.current = now;
         try {
           const hands = detectHands(landmarker, video, now);
-          const primary = extractPrimaryHandLandmarks(hands);
+          const primary = pickPrimary(hands);
+          if (!!primary !== handVisibleRef.current) {
+            handVisibleRef.current = !!primary;
+            setHandVisible(!!primary);
+          }
+          const overlay = overlayRef.current;
+          const width = video.videoWidth || overlay?.clientWidth || 0;
+          const height = video.videoHeight || overlay?.clientHeight || 0;
+          if (overlay && width > 0 && height > 0) {
+            if (overlay.width !== width || overlay.height !== height) {
+              overlay.width = width;
+              overlay.height = height;
+            }
+            const ctx = overlay.getContext('2d');
+            if (ctx) {
+              if (primary) drawHand(ctx, primary.image, overlay.width, overlay.height);
+              else ctx.clearRect(0, 0, overlay.width, overlay.height);
+            }
+          }
           if (primary) {
-            const smoothed = smoothLandmarks(primary, prevLandmarksRef.current, 0.3);
+            const smoothed = smoothLandmarks(primary.image, prevLandmarksRef.current, 0.35);
             prevLandmarksRef.current = smoothed;
 
             if (now - lastScoreTimeRef.current > 200) {
@@ -132,6 +204,7 @@ export function PracticeCamera({
                 smoothed,
                 targetPoseRef.current,
                 facingModeRef.current === 'user',
+                primary.image,
               );
               setScore(result);
               onScoreRef.current?.(result);
@@ -162,14 +235,26 @@ export function PracticeCamera({
 
   return (
     <div className={cn('space-y-4', className)}>
-      <div className="relative rounded-xl overflow-hidden border border-border bg-black aspect-video max-w-lg">
+      <div className="relative isolate rounded-xl overflow-hidden border border-border bg-black aspect-video max-w-lg">
         <video
           ref={videoRef}
-          className={cn('w-full h-full object-cover', facingMode === 'user' && 'scale-x-[-1]')}
+          className={cn(
+            'relative z-0 h-full w-full object-cover',
+            facingMode === 'user' && 'scale-x-[-1]',
+          )}
           playsInline
           muted
           autoPlay
           aria-label="Webcam feed for sign practice"
+        />
+        <canvas
+          ref={overlayRef}
+          className="absolute inset-0 z-10 h-full w-full object-cover pointer-events-none"
+          style={{
+            transform:
+              facingMode === 'user' ? 'translateZ(1px) scaleX(-1)' : 'translateZ(1px)',
+          }}
+          aria-hidden="true"
         />
 
         {!isActive && (
@@ -187,8 +272,14 @@ export function PracticeCamera({
           </div>
         )}
 
+        {isActive && (
+          <div className="absolute bottom-3 left-3 z-20 rounded-md bg-background/90 px-2 py-1 text-xs">
+            {handVisible ? 'Hand detected' : 'Show your hand to the camera'}
+          </div>
+        )}
+
         {score && isActive && (
-          <div className="absolute top-3 right-3 bg-background/90 rounded-lg px-3 py-2 text-sm">
+          <div className="absolute top-3 right-3 z-20 bg-background/90 rounded-lg px-3 py-2 text-sm">
             <span className={cn('font-bold text-lg', scoreColor)}>
               {Math.round(score.overall * 100)}%
             </span>

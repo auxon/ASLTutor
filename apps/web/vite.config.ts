@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
@@ -16,6 +17,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      filename: 'sw-v5.js',
       injectRegister: false,
       includeAssets: ['favicon.svg'],
       manifest: {
@@ -41,22 +43,42 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,wasm}'],
+        cacheId: 'signflow-asl-v5',
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
+        globIgnores: ['**/sw.js'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/@mediapipe\/tasks-vision/,
-            handler: 'CacheFirst',
+            handler: 'NetworkFirst',
             options: {
-              cacheName: 'mediapipe-cache',
+              cacheName: 'mediapipe-wasm-v3',
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 30,
+                maxAgeSeconds: 60 * 60 * 24 * 7,
               },
             },
           },
         ],
       },
     }),
+    {
+      name: 'signflow-sw-reload-clients',
+      apply: 'build',
+      enforce: 'post',
+      closeBundle() {
+        const swPath = path.resolve(__dirname, 'dist/sw-v5.js');
+        if (!fs.existsSync(swPath)) return;
+        const src = fs.readFileSync(swPath, 'utf8');
+        if (src.includes('signflow-reload-clients')) return;
+        fs.appendFileSync(
+          swPath,
+          '\n/* signflow-reload-clients */\nself.addEventListener("activate",event=>{event.waitUntil(self.clients.matchAll({type:"window",includeUncontrolled:!0}).then(cs=>Promise.all(cs.map(c=>typeof c.navigate=="function"?c.navigate(c.url):undefined))))});\n',
+        );
+      },
+    },
   ],
   resolve: {
     alias: {
