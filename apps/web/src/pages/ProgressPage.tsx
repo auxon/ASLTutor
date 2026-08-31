@@ -13,12 +13,15 @@ import {
 import { getSignById } from '@/data/content';
 import { Link } from 'react-router-dom';
 import type { MasteryRecord } from '@/engine/mastery';
+import { canUseSrs } from '@/engine/entitlement';
+import { useBilling } from '@/hooks/useBilling';
 
 export function ProgressPage() {
   const [stats, setStats] = useState<Awaited<ReturnType<typeof getProgressStats>> | null>(null);
   const reviewQueue = useLiveQuery(() => getReviewQueue(20), []) ?? [];
   const allMastery = useLiveQuery(() => getAllMastery(), []) ?? [];
   const todayGoal = useLiveQuery(() => getTodayGoal(), []);
+  const { entitlement, openPaywall } = useBilling();
 
   useEffect(() => {
     getProgressStats().then(setStats);
@@ -88,7 +91,18 @@ export function ProgressPage() {
         <h2 id="review-heading" className="text-xl font-bold mb-4">
           Review Queue
         </h2>
-        {reviewQueue.length === 0 ? (
+        {!canUseSrs(entitlement) ? (
+          <Card>
+            <CardContent className="py-8 text-center space-y-3">
+              <p className="text-muted-foreground">
+                Spaced repetition is a Pro habit. Stats above still save on this device.
+              </p>
+              <Button type="button" onClick={() => openPaywall('srs')}>
+                Start 7-day trial
+              </Button>
+            </CardContent>
+          </Card>
+        ) : reviewQueue.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-muted-foreground">
               No reviews due — complete a lesson to add signs to your queue.

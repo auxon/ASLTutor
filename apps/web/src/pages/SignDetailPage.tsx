@@ -1,14 +1,24 @@
+import { useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { SignPlayer } from '@/components/sign-player';
 import { PracticeCamera } from '@/components/practice/PracticeCamera';
+import { CompareShareButton } from '@/components/practice/CompareShareButton';
+import { CameraGate } from '@/components/billing/CameraGate';
 import { getSignById, getAnimationBySignId } from '@/data/content';
 import { recordPracticeSession } from '@/engine/mastery';
+import { canUseCamera } from '@/engine/entitlement';
+import { useBilling } from '@/hooks/useBilling';
+import type { FrameCaptureHandle, PracticeCaptureHandle } from '@/engine/compare-card';
 
 export function SignDetailPage() {
   const { signId } = useParams<{ signId: string }>();
   const sign = signId ? getSignById(signId) : undefined;
   const animation = signId ? getAnimationBySignId(signId) : undefined;
+  const [handshapePercent, setHandshapePercent] = useState<number | undefined>();
+  const playerRef = useRef<FrameCaptureHandle>(null);
+  const cameraRef = useRef<PracticeCaptureHandle>(null);
+  const { entitlement } = useBilling();
 
   if (!sign) {
     return (
@@ -35,20 +45,34 @@ export function SignDetailPage() {
         <ArrowLeft className="h-4 w-4 mr-1" /> Dictionary
       </Link>
 
-      <SignPlayer sign={sign} animation={animation ?? null} />
+      <SignPlayer ref={playerRef} sign={sign} animation={animation ?? null} />
 
       <section aria-labelledby="practice-heading" className="border-t border-border pt-6">
         <h2 id="practice-heading" className="text-xl font-bold mb-4">
           Practice This Sign
         </h2>
-        <PracticeCamera
-          targetHandshape={handshape}
-          onScore={async (s) => {
-            if (s.overall >= 0.4) {
-              await recordPracticeSession(sign.id, s.overall, 'expressive');
-            }
-          }}
-        />
+        <CameraGate signId={sign.id}>
+          <PracticeCamera
+            ref={cameraRef}
+            targetHandshape={handshape}
+            onScore={async (s) => {
+              setHandshapePercent(s.handshape * 100);
+              if (s.overall >= 0.4) {
+                await recordPracticeSession(sign.id, s.overall, 'expressive');
+              }
+            }}
+          />
+        </CameraGate>
+        {canUseCamera(entitlement, sign.id) && (
+          <div className="mt-4">
+            <CompareShareButton
+              gloss={sign.gloss}
+              handshapePercent={handshapePercent}
+              playerRef={playerRef}
+              cameraRef={cameraRef}
+            />
+          </div>
+        )}
       </section>
 
       {sign.regionalNotes && (

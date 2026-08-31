@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { BookOpen, GraduationCap, Hand, Home, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
+import { useBilling } from '@/hooks/useBilling';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Home', icon: Home },
@@ -15,11 +16,13 @@ const LANDING_ANCHORS = [
   { href: '#features', label: 'Features' },
   { href: '#demo', label: 'Demo' },
   { href: '#how-it-works', label: 'How it works' },
+  { href: '#pricing', label: 'Pricing' },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const isLanding = location.pathname === '/';
+  const { entitlement, openPaywall } = useBilling();
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -53,9 +56,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   {label}
                 </a>
               ))}
-              <Link to="/lessons">
+              <Link to="/practice">
                 <Button size="sm">Get Started</Button>
               </Link>
+              {entitlement.pro ? (
+                <Link to="/account" className="text-sm font-medium text-primary">
+                  Pro
+                </Link>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => openPaywall('pricing')}>
+                  Start trial
+                </Button>
+              )}
             </nav>
           ) : (
             <nav aria-label="Main navigation" className="hidden md:flex items-center gap-1">
@@ -75,13 +87,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   {label}
                 </Link>
               ))}
+              <Link
+                to="/account"
+                className={cn(
+                  'inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium',
+                  location.pathname === '/account'
+                    ? 'bg-secondary text-foreground'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {entitlement.pro ? 'Pro' : 'Account'}
+              </Link>
             </nav>
           )}
 
           {isLanding && (
-            <Link to="/lessons" className="md:hidden">
-              <Button size="sm">Get Started</Button>
-            </Link>
+            <div className="md:hidden flex items-center gap-2">
+              <Link to="/practice">
+                <Button size="sm">Get Started</Button>
+              </Link>
+            </div>
           )}
         </div>
       </header>

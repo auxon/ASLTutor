@@ -4,6 +4,8 @@ dist
 *.local
 .env
 .env.*
+.dev.vars
+.wrangler
 .vite
 coverage
 *.log

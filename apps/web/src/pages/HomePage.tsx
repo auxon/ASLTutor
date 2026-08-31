@@ -3,6 +3,7 @@ import { FeaturesSection } from '@/components/landing/FeaturesSection';
 import { DemoSection } from '@/components/landing/DemoSection';
 import { HowItWorksSection } from '@/components/landing/HowItWorksSection';
 import { ParametersSection } from '@/components/landing/ParametersSection';
+import { PricingSection } from '@/components/landing/PricingSection';
 import { CTASection } from '@/components/landing/CTASection';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 
@@ -14,6 +15,7 @@ export function HomePage() {
       <DemoSection />
       <HowItWorksSection />
       <ParametersSection />
+      <PricingSection />
       <CTASection />
       <LandingFooter />
     </div>

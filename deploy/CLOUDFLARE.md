@@ -14,6 +14,7 @@ Live at **https://entangleit.com/ASLTutor/**
 
 The portfolio site uses `public/_worker.js` to route:
 
+- `/ASLTutor/api/*` → SignFlow billing Worker (`SIGNFLOW_API` → `signflow-billing`)
 - `/ASLTutor/*` → SignFlow ASL SPA (`/ASLTutor/index.html`)
 - everything else → portfolio SPA
 
@@ -38,8 +39,26 @@ Or one-liner from ASLTutor:
        --project-name=richard-hein-portfolio --commit-dirty=true
 ```
 
-## Auth
+## SignFlow billing
 
+Worker: `apps/billing` (`signflow-billing`). KV namespace `signflow-entitlements`.
+Webhook URL: `https://entangleit.com/ASLTutor/api/stripe/webhook`
+
+```bash
+cd apps/billing
+npx wrangler deploy
+npx wrangler secret put STRIPE_SECRET_KEY
+npx wrangler secret put STRIPE_WEBHOOK_SECRET
+npx wrangler secret put STRIPE_PRICE_MONTHLY
+npx wrangler secret put STRIPE_PRICE_YEARLY
+npx wrangler secret put SESSION_SECRET
+npx wrangler secret put RESEND_API_KEY   # optional; checkout still signs you in
+```
+
+Stripe product: SignFlow Pro, $12.99/month and $99/year, 7-day trial on Checkout.
+The Pages project must bind `SIGNFLOW_API` → `signflow-billing` (see portfolio `wrangler.toml`).
+
+## Auth
 ```bash
 npx wrangler login   # browser OAuth; tokens expire ~3 months
 npx wrangler whoami

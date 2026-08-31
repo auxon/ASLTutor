@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, forwardRef } from 'react';
 import type { Landmark3D, PoseScore } from '@/engine/pose-scorer';
 import {
   scorePose,
@@ -12,6 +12,7 @@ import {
   type DetectedHand,
   type HandLandmarker,
 } from '@/engine/hand-tracker';
+import { captureCameraFrame, type PracticeCaptureHandle } from '@/engine/compare-card';
 import { cn } from '@/lib/utils';
 import { Camera, CameraOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -71,11 +72,8 @@ interface PracticeCameraProps {
   className?: string;
 }
 
-export function PracticeCamera({
-  targetHandshape,
-  onScore,
-  className,
-}: PracticeCameraProps) {
+export const PracticeCamera = forwardRef<PracticeCaptureHandle, PracticeCameraProps>(
+  function PracticeCamera({ targetHandshape, onScore, className }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const landmarkerRef = useRef<HandLandmarker | null>(null);
@@ -95,11 +93,25 @@ export function PracticeCamera({
   const [handVisible, setHandVisible] = useState(false);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const handVisibleRef = useRef(false);
+  const isActiveRef = useRef(false);
 
   const targetPose = getTargetPoseForHandshape(targetHandshape);
   targetPoseRef.current = targetPose;
   onScoreRef.current = onScore;
   facingModeRef.current = facingMode;
+
+  useImperativeHandle(ref, () => ({
+    captureFrame() {
+      const video = videoRef.current;
+      if (!video || !isActiveRef.current) return null;
+      return captureCameraFrame(
+        video,
+        overlayRef.current,
+        facingModeRef.current === 'user',
+      );
+    },
+    isCameraActive: () => isActiveRef.current,
+  }));
 
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +139,7 @@ export function PracticeCamera({
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     handVisibleRef.current = false;
+    isActiveRef.current = false;
     setHandVisible(false);
     setIsActive(false);
   }, []);
@@ -151,6 +164,7 @@ export function PracticeCamera({
       video.srcObject = stream;
       video.setAttribute('playsinline', 'true');
       await video.play();
+      isActiveRef.current = true;
       setIsActive(true);
     } catch (err) {
       setError(
@@ -359,4 +373,4 @@ export function PracticeCamera({
       </p>
     </div>
   );
-}
+});

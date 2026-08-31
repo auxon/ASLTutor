@@ -49,7 +49,12 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
         globIgnores: ['**/sw.js'],
+        navigateFallbackDenylist: [/\/api\//],
         runtimeCaching: [
+          {
+            urlPattern: /\/ASLTutor\/api\//,
+            handler: 'NetworkOnly',
+          },
           {
             urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/@mediapipe\/tasks-vision/,
             handler: 'NetworkFirst',
@@ -83,6 +88,15 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+    },
+  },
+  server: {
+    proxy: {
+      '/ASLTutor/api': {
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/ASLTutor/, ''),
+      },
     },
   },
   optimizeDeps: {

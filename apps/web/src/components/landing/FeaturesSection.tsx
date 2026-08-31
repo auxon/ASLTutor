@@ -4,7 +4,7 @@ import {
   GraduationCap,
   Hand,
   RefreshCw,
-  Smartphone,
+  Share2,
 } from 'lucide-react';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { dictionary, lessons } from '@/data/content';
@@ -34,16 +34,16 @@ const FEATURES = [
       'MediaPipe hand tracking gives real-time pose feedback so you can practice expressive signs with your webcam.',
   },
   {
+    icon: Share2,
+    title: 'Compare & Share',
+    description:
+      'Save a side-by-side still of the 3D teacher and your hand. Scores are a handshape guide, not a fluency grade.',
+  },
+  {
     icon: RefreshCw,
     title: 'Spaced Repetition',
     description:
       'Per-sign mastery tracking and a smart review queue help you retain what you learn over time.',
-  },
-  {
-    icon: Smartphone,
-    title: 'Works Offline',
-    description:
-      'Install as a PWA and keep learning on the go — lessons and dictionary available after your first visit.',
   },
 ];
 

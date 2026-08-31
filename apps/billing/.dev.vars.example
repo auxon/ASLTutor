@@ -1,0 +1,8 @@
+# Copy to .dev.vars (gitignored). Production secrets: wrangler secret put …
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_PRICE_MONTHLY=
+STRIPE_PRICE_YEARLY=
+SESSION_SECRET=change-me-to-a-long-random-string
+RESEND_API_KEY=
+EMAIL_FROM=SignFlow <noreply@entangleit.com>

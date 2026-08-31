@@ -1,8 +1,9 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { Play, Pause, RotateCcw, Repeat, Hand } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSignPlayerStore, type CameraPreset } from '@/stores/sign-player-store';
 import { HANDshape_LABELS } from '@asl/sign-schema';
+import type { FrameCaptureHandle } from '@/engine/compare-card';
 import type { ASLSignClip, SignAnimation } from '@asl/sign-schema';
 
 const SignPlayerCanvas = lazy(() =>
@@ -222,33 +223,41 @@ interface SignPlayerProps {
   className?: string;
 }
 
-export function SignPlayer({ sign, animation, className }: SignPlayerProps) {
-  const setSign = useSignPlayerStore((s) => s.setSign);
+export const SignPlayer = forwardRef<FrameCaptureHandle, SignPlayerProps>(
+  function SignPlayer({ sign, animation, className }, ref) {
+    const setSign = useSignPlayerStore((s) => s.setSign);
+    const canvasRef = useRef<FrameCaptureHandle>(null);
 
-  useEffect(() => {
-    setSign(sign, animation);
-    return () => useSignPlayerStore.getState().reset();
-  }, [sign, animation, setSign]);
+    useImperativeHandle(ref, () => ({
+      captureFrame: () => canvasRef.current?.captureFrame() ?? null,
+    }));
 
-  return (
-    <div className={cn('grid lg:grid-cols-5 gap-4', className)}>
-      <div className="lg:col-span-3 rounded-xl overflow-hidden border border-border bg-card min-h-[320px] lg:min-h-[480px]">
-        <Suspense
-          fallback={
-            <div className="flex items-center justify-center h-full min-h-[320px] text-muted-foreground">
-              Loading 3D hands…
-            </div>
-          }
-        >
-          <SignPlayerCanvas
-            animation={animation}
-            className="w-full h-full min-h-[320px] lg:min-h-[480px]"
-          />
-        </Suspense>
+    useEffect(() => {
+      setSign(sign, animation);
+      return () => useSignPlayerStore.getState().reset();
+    }, [sign, animation, setSign]);
+
+    return (
+      <div className={cn('grid lg:grid-cols-5 gap-4', className)}>
+        <div className="lg:col-span-3 rounded-xl overflow-hidden border border-border bg-card min-h-[320px] lg:min-h-[480px]">
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center h-full min-h-[320px] text-muted-foreground">
+                Loading 3D hands…
+              </div>
+            }
+          >
+            <SignPlayerCanvas
+              ref={canvasRef}
+              animation={animation}
+              className="w-full h-full min-h-[320px] lg:min-h-[480px]"
+            />
+          </Suspense>
+        </div>
+        <div className="lg:col-span-2">
+          <SignPlayerControls sign={sign} />
+        </div>
       </div>
-      <div className="lg:col-span-2">
-        <SignPlayerControls sign={sign} />
-      </div>
-    </div>
-  );
-}
+    );
+  },
+);

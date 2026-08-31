@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, forwardRef, useEffect, useImperativeHandle, useRef, useState, type MutableRefObject } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Environment, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
@@ -6,6 +6,7 @@ import { HandPair } from './HandRig';
 import { useSignPlayerStore, type CameraPreset } from '@/stores/sign-player-store';
 import { sampleAnimation } from '@/engine/sign-player';
 import { getDefaultPose, type FlatHandPose } from '@/engine/hand-poses';
+import type { FrameCaptureHandle } from '@/engine/compare-card';
 import type { SignAnimation } from '@asl/sign-schema';
 
 const CAMERA_PRESETS: Record<CameraPreset, [THREE.Vector3Tuple, THREE.Vector3Tuple]> = {
@@ -85,6 +86,47 @@ function AnimatedHands({ animation }: { animation: SignAnimation | null }) {
   );
 }
 
+const LOOK_AT = new THREE.Vector3(0, 0.05, 0);
+/** Pull the camera back so both hands (and fingertips) fit in the compare card. */
+const CAPTURE_DISTANCE = 1.05;
+
+function captureTeacherFrame(
+  gl: THREE.WebGLRenderer,
+  camera: THREE.Camera,
+  scene: THREE.Scene,
+): HTMLCanvasElement | null {
+  const src = gl.domElement;
+  if (!src || src.width === 0 || src.height === 0) return null;
+
+  const origPos = camera.position.clone();
+  const offset = origPos.clone().sub(LOOK_AT);
+  const distance = offset.length();
+  if (distance > 1e-5 && distance < CAPTURE_DISTANCE) {
+    camera.position.copy(LOOK_AT).addScaledVector(offset.normalize(), CAPTURE_DISTANCE);
+    camera.updateMatrixWorld();
+  }
+  gl.render(scene, camera);
+
+  const out = document.createElement('canvas');
+  out.width = src.width;
+  out.height = src.height;
+  const ctx = out.getContext('2d');
+  if (ctx) ctx.drawImage(src, 0, 0);
+  camera.position.copy(origPos);
+  camera.updateMatrixWorld();
+  return ctx ? out : null;
+}
+
+function GlBridge({
+  captureRef,
+}: {
+  captureRef: MutableRefObject<(() => HTMLCanvasElement | null) | null>;
+}) {
+  const { gl, camera, scene } = useThree();
+  captureRef.current = () => captureTeacherFrame(gl, camera, scene);
+  return null;
+}
+
 function SceneContent({ animation }: { animation: SignAnimation | null }) {
   return (
     <>
@@ -104,20 +146,31 @@ interface SignPlayerCanvasProps {
   className?: string;
 }
 
-export function SignPlayerCanvas({ animation, className }: SignPlayerCanvasProps) {
-  return (
-    <div className={className} role="img" aria-label="3D ASL hand demonstration">
-      <Canvas
-        shadows
-        dpr={[1, 1.5]}
-        camera={{ fov: 45, near: 0.1, far: 10, position: [0, 0.05, 0.45] }}
-        frameloop="always"
-        gl={{ antialias: true, alpha: true }}
-      >
-        <Suspense fallback={null}>
-          <SceneContent animation={animation} />
-        </Suspense>
-      </Canvas>
-    </div>
-  );
-}
+export const SignPlayerCanvas = forwardRef<FrameCaptureHandle, SignPlayerCanvasProps>(
+  function SignPlayerCanvas({ animation, className }, ref) {
+    const captureRef = useRef<(() => HTMLCanvasElement | null) | null>(null);
+
+    useImperativeHandle(ref, () => ({
+      captureFrame() {
+        return captureRef.current?.() ?? null;
+      },
+    }));
+
+    return (
+      <div className={className} role="img" aria-label="3D ASL hand demonstration">
+        <Canvas
+          shadows
+          dpr={[1, 1.5]}
+          camera={{ fov: 45, near: 0.1, far: 10, position: [0, 0.05, 0.45] }}
+          frameloop="always"
+          gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
+        >
+          <GlBridge captureRef={captureRef} />
+          <Suspense fallback={null}>
+            <SceneContent animation={animation} />
+          </Suspense>
+        </Canvas>
+      </div>
+    );
+  },
+);

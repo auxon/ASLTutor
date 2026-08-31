@@ -2,10 +2,10 @@ import { Link } from 'react-router-dom';
 import { Hand } from 'lucide-react';
 
 const FOOTER_LINKS = [
+  { to: '/practice', label: 'Practice' },
   { to: '/lessons', label: 'Lessons' },
   { to: '/dictionary', label: 'Dictionary' },
-  { to: '/practice', label: 'Practice' },
-  { to: '/progress', label: 'Progress' },
+  { to: '/account', label: 'Account' },
 ];
 
 export function LandingFooter() {
@@ -42,7 +42,7 @@ export function LandingFooter() {
 
         <p className="text-xs text-muted-foreground mt-10 pt-6 border-t border-border">
           © {new Date().getFullYear()} SignFlow ASL. Hand models are procedurally generated for
-          this project.
+          this project. Camera scores are a guide, not a fluency grade.
         </p>
       </div>
     </footer>

@@ -1,8 +1,13 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { SignPlayer } from '@/components/sign-player';
 import { PracticeCamera } from '@/components/practice/PracticeCamera';
+import { CompareShareButton } from '@/components/practice/CompareShareButton';
+import { CameraGate } from '@/components/billing/CameraGate';
 import { dictionary, getSignById, getAnimationBySignId } from '@/data/content';
 import { getReviewQueue } from '@/engine/mastery';
+import { canUseCamera, canUseSrs } from '@/engine/entitlement';
+import { useBilling } from '@/hooks/useBilling';
+import type { FrameCaptureHandle, PracticeCaptureHandle } from '@/engine/compare-card';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -13,6 +18,10 @@ type PracticeMode = 'fingerspelling' | 'review' | 'free';
 export function PracticePage() {
   const [mode, setMode] = useState<PracticeMode>('fingerspelling');
   const [currentSignId, setCurrentSignId] = useState('sign-a');
+  const [handshapePercent, setHandshapePercent] = useState<number | undefined>();
+  const playerRef = useRef<FrameCaptureHandle>(null);
+  const cameraRef = useRef<PracticeCaptureHandle>(null);
+  const { entitlement, openPaywall } = useBilling();
 
   const reviewQueue = useLiveQuery(() => getReviewQueue(10), []) ?? [];
 
@@ -32,6 +41,7 @@ export function PracticePage() {
     if (filtered.length === 0) return;
     const pick = filtered[Math.floor(Math.random() * filtered.length)]!;
     setCurrentSignId(pick.id);
+    setHandshapePercent(undefined);
   };
 
   return (
@@ -55,7 +65,13 @@ export function PracticePage() {
             key={id}
             variant={mode === id ? 'primary' : 'secondary'}
             size="sm"
-            onClick={() => setMode(id)}
+            onClick={() => {
+              if (id === 'review' && !canUseSrs(entitlement)) {
+                openPaywall('srs');
+                return;
+              }
+              setMode(id);
+            }}
           >
             {label}
           </Button>
@@ -76,12 +92,15 @@ export function PracticePage() {
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => setCurrentSignId(s.id)}
+                  onClick={() => {
+                    setCurrentSignId(s.id);
+                    setHandshapePercent(undefined);
+                  }}
                   className={`h-9 w-9 rounded-md text-sm font-medium transition-colors ${
                     currentSignId === s.id
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-secondary text-muted-foreground hover:text-foreground'
-                  }`}
+                  } ${!canUseCamera(entitlement, s.id) ? 'opacity-70' : ''}`}
                   aria-label={`Practice ${s.gloss}`}
                   aria-pressed={currentSignId === s.id}
                 >
@@ -95,8 +114,24 @@ export function PracticePage() {
 
       {sign && (
         <div className="grid lg:grid-cols-2 gap-6">
-          <SignPlayer sign={sign} animation={animation ?? null} />
-          <PracticeCamera targetHandshape={handshape} />
+          <SignPlayer ref={playerRef} sign={sign} animation={animation ?? null} />
+          <div className="space-y-4">
+            <CameraGate signId={sign.id}>
+              <PracticeCamera
+                ref={cameraRef}
+                targetHandshape={handshape}
+                onScore={(s) => setHandshapePercent(s.handshape * 100)}
+              />
+            </CameraGate>
+            {canUseCamera(entitlement, sign.id) && (
+              <CompareShareButton
+                gloss={sign.gloss}
+                handshapePercent={handshapePercent}
+                playerRef={playerRef}
+                cameraRef={cameraRef}
+              />
+            )}
+          </div>
         </div>
       )}
     </div>

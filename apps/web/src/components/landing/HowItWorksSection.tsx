@@ -13,14 +13,14 @@ const STEPS = [
     icon: Camera,
     title: 'Practice with your camera',
     description:
-      'Turn on webcam practice to get pose feedback. SignFlow compares your hand shape and movement against the reference sign.',
+      'Turn on webcam practice, then save a side-by-side of the 3D hand and yours.',
   },
   {
     step: '03',
     icon: Trophy,
     title: 'Build lasting mastery',
     description:
-      'Spaced repetition tracks what you know and queues signs for review — so you retain vocabulary instead of cramming and forgetting.',
+      'Spaced repetition tracks what you know. Share a compare card when you want to show progress — it is a guide, not a grade.',
   },
 ];
 

@@ -8,6 +8,9 @@ import { SignDetailPage } from '@/pages/SignDetailPage';
 import { LessonsPage } from '@/pages/LessonsPage';
 import { PracticePage } from '@/pages/PracticePage';
 import { ProgressPage } from '@/pages/ProgressPage';
+import { AccountPage } from '@/pages/AccountPage';
+import { BillingProvider } from '@/hooks/useBilling';
+import { PaywallModal } from '@/components/billing/PaywallModal';
 
 const queryClient = new QueryClient();
 const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -16,18 +19,22 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter basename={routerBasename}>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/dictionary" element={<DictionaryPage />} />
-            <Route path="/dictionary/:signId" element={<SignDetailPage />} />
-            <Route path="/lessons" element={<LessonsPage />} />
-            <Route path="/lessons/:moduleId" element={<LessonsPage />} />
-            <Route path="/practice" element={<PracticePage />} />
-            <Route path="/progress" element={<ProgressPage />} />
-          </Routes>
-        </Layout>
-        <OnboardingModal />
+        <BillingProvider>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/dictionary" element={<DictionaryPage />} />
+              <Route path="/dictionary/:signId" element={<SignDetailPage />} />
+              <Route path="/lessons" element={<LessonsPage />} />
+              <Route path="/lessons/:moduleId" element={<LessonsPage />} />
+              <Route path="/practice" element={<PracticePage />} />
+              <Route path="/progress" element={<ProgressPage />} />
+              <Route path="/account" element={<AccountPage />} />
+            </Routes>
+          </Layout>
+          <OnboardingModal />
+          <PaywallModal />
+        </BillingProvider>
       </BrowserRouter>
     </QueryClientProvider>
   );

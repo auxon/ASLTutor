@@ -21,22 +21,22 @@ export function CTASection() {
               Ready to start signing?
             </h2>
             <p className="text-muted-foreground text-lg max-w-lg mx-auto mb-8">
-              Jump into structured lessons or browse the full dictionary — no account required.
-              Your progress is saved locally in your browser.
+              HELLO, NAME, and A–E are free — 3D, camera, and a shareable compare card. Lessons,
+              review, and the rest of the camera set are Pro after a 7-day trial.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/lessons">
+              <Link to="/practice">
                 <Button size="lg" className="gap-2 min-w-[180px]">
-                  Start first lesson
+                  Practice HELLO
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </Link>
-              <Link to="/dictionary">
+              <a href="#pricing">
                 <Button variant="outline" size="lg" className="min-w-[180px]">
-                  Browse dictionary
+                  See pricing
                 </Button>
-              </Link>
+              </a>
             </div>
           </div>
         </div>
