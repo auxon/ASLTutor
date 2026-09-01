@@ -104,6 +104,7 @@ export function createTalkApi(deps: TalkApiDeps): TalkApi {
   const now = () => deps.now?.() ?? new Date();
   const nextId = () => deps.id?.() ?? crypto.randomUUID();
   const { store, catalog } = deps;
+  let seedInFlight: Promise<PhrasePin[]> | null = null;
 
   async function requireProfile(): Promise<TalkProfile> {
     const existing = await store.getProfile(userId);
@@ -132,33 +133,46 @@ export function createTalkApi(deps: TalkApiDeps): TalkApi {
   }
 
   async function seedDefaultPins(): Promise<PhrasePin[]> {
-    const profile = await requireProfile();
-    const existing = await store.listPins(userId);
-    if (profile.pins_seeded) return existing;
-
-    const defaults: Array<{ label: string; signId: string }> = [
-      { label: 'Thank you', signId: 'sign-thank-you' },
-      { label: 'Bathroom', signId: 'sign-bathroom' },
-      { label: 'Help', signId: 'sign-help' },
-    ];
-
-    const timestamp = iso(now());
-    for (const [index, item] of defaults.entries()) {
-      if (!catalog.some((sign) => sign.id === item.signId)) continue;
-      const pin: PhrasePin = {
-        id: nextId(),
-        user_id: userId,
-        sign_id: item.signId,
-        custom_text: item.label,
-        folder: 'general',
-        sort_order: index,
-        created_at: timestamp,
-        updated_at: timestamp,
-      };
-      await store.putPin(pin);
+    if (seedInFlight) {
+      await seedInFlight;
+      return store.listPins(userId);
     }
-    await store.putProfile({ ...profile, pins_seeded: true });
-    return store.listPins(userId);
+    seedInFlight = (async () => {
+      const profile = await requireProfile();
+      const existing = await store.listPins(userId);
+      if (profile.pins_seeded) return collapseDuplicateDefaults(store, existing);
+
+      // Mark seeded first so a concurrent listPins cannot insert a second set.
+      await store.putProfile({ ...profile, pins_seeded: true });
+
+      const defaults: Array<{ label: string; signId: string }> = [
+        { label: 'Thank you', signId: 'sign-thank-you' },
+        { label: 'Bathroom', signId: 'sign-bathroom' },
+        { label: 'Help', signId: 'sign-help' },
+      ];
+
+      const timestamp = iso(now());
+      for (const [index, item] of defaults.entries()) {
+        if (!catalog.some((sign) => sign.id === item.signId)) continue;
+        const pin: PhrasePin = {
+          id: nextId(),
+          user_id: userId,
+          sign_id: item.signId,
+          custom_text: item.label,
+          folder: 'general',
+          sort_order: index,
+          created_at: timestamp,
+          updated_at: timestamp,
+        };
+        await store.putPin(pin);
+      }
+      return store.listPins(userId);
+    })();
+    try {
+      return await seedInFlight;
+    } finally {
+      seedInFlight = null;
+    }
   }
 
   function findSign(id: string): CatalogSign | undefined {
@@ -429,6 +443,22 @@ export function createTalkApi(deps: TalkApiDeps): TalkApi {
       return sign;
     },
   };
+}
+
+async function collapseDuplicateDefaults(store: TalkStore, pins: PhrasePin[]): Promise<PhrasePin[]> {
+  const defaultLabels = new Set(['Thank you', 'Bathroom', 'Help']);
+  const seen = new Set<string>();
+  const kept: PhrasePin[] = [];
+  for (const pin of pins) {
+    const key = `${pin.custom_text ?? ''}|${pin.sign_id ?? ''}|${pin.folder}`;
+    if (defaultLabels.has(pin.custom_text ?? '') && seen.has(key)) {
+      await store.deletePin(pin.id);
+      continue;
+    }
+    if (defaultLabels.has(pin.custom_text ?? '')) seen.add(key);
+    kept.push(pin);
+  }
+  return kept;
 }
 
 function resolveUtterance(

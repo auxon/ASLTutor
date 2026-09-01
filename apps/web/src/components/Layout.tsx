@@ -9,14 +9,14 @@ const DESKTOP_NAV = [
   { to: '/lessons', label: 'Learn', icon: BookOpen },
   { to: '/practice', label: 'Practice', icon: Scan },
   { to: '/talk', label: 'Talk', icon: MessageCircle },
-  { to: '/progress', label: 'Profile', icon: User },
+  { to: '/profile', label: 'Profile', icon: User },
 ];
 
 const MOBILE_NAV = [
   { to: '/lessons', label: 'Learn', icon: BookOpen },
   { to: '/practice', label: 'Practice', icon: Scan },
   { to: '/talk', label: 'Talk', icon: MessageCircle },
-  { to: '/progress', label: 'Profile', icon: User },
+  { to: '/profile', label: 'Profile', icon: User },
 ];
 
 const LANDING_ANCHORS = [
@@ -27,6 +27,7 @@ const LANDING_ANCHORS = [
 
 function navActive(pathname: string, to: string): boolean {
   if (to === '/') return pathname === '/';
+  if (to === '/profile') return pathname === '/profile' || pathname.startsWith('/progress');
   return pathname === to || pathname.startsWith(`${to}/`);
 }
 

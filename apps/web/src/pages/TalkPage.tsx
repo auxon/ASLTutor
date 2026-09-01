@@ -32,6 +32,7 @@ import { UpgradeSheet } from '@/components/talk/UpgradeSheet';
 import { playbackFromSignIds, type TalkPlayback } from '@/components/talk/playback';
 import { dictionaryCatalog } from '@/api/talk/catalog';
 import { getSignById } from '@/data/content';
+import { useSignPlayerStore } from '@/stores/sign-player-store';
 
 const SESSION_KEY = 'signflow-talk-session-id';
 const FOLDERS: PinFolder[] = ['general', 'doctor', 'school', 'work'];
@@ -99,6 +100,7 @@ export function TalkPage() {
     return () => {
       cancelled = true;
       listenCtl.current?.stop();
+      useSignPlayerStore.getState().reset();
     };
   }, [api]);
 

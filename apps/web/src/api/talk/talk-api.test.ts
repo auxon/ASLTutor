@@ -123,6 +123,14 @@ describe('Talk pin CRUD', () => {
     expect(afterDelete.some((pin) => pin.id === created.id)).toBe(false);
     expect(afterDelete).toHaveLength(3);
   });
+
+  it('does not duplicate default pins when listPins races', async () => {
+    const { api } = setup();
+    const [first, second] = await Promise.all([api.listPins(), api.listPins()]);
+    expect(first).toHaveLength(3);
+    expect(second).toHaveLength(3);
+    expect(await api.listPins()).toHaveLength(3);
+  });
 });
 
 describe('Talk utterances', () => {

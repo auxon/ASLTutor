@@ -26,6 +26,7 @@ export default function App() {
             <Route path="/lessons/:moduleId" element={<LessonsPage />} />
             <Route path="/practice" element={<PracticePage />} />
             <Route path="/talk" element={<TalkPage />} />
+            <Route path="/profile" element={<ProgressPage />} />
             <Route path="/progress" element={<ProgressPage />} />
           </Routes>
         </Layout>
