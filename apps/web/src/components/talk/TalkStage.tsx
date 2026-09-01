@@ -3,6 +3,7 @@ import { Gauge, RotateCcw } from 'lucide-react';
 import type { ASLSignClip } from '@asl/sign-schema';
 import type { SignAnimation } from '@asl/sign-schema';
 import { useSignPlayerStore } from '@/stores/sign-player-store';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { glossAtProgress } from './playback';
 
 const SignPlayerCanvas = lazy(() =>
@@ -89,10 +90,18 @@ export function TalkStage({ sign, animation, parts, label, replayKey }: TalkStag
           </div>
         }
       >
-        <SignPlayerCanvas
-          animation={animation}
-          className="w-full h-[220px] sm:h-[280px]"
-        />
+        <ErrorBoundary
+          fallback={
+            <div className="flex items-center justify-center h-[220px] sm:h-[280px] px-6 text-center text-sm text-muted-foreground">
+              3D hands could not load on this device. Pins and captions still work.
+            </div>
+          }
+        >
+          <SignPlayerCanvas
+            animation={animation}
+            className="w-full h-[220px] sm:h-[280px]"
+          />
+        </ErrorBoundary>
       </Suspense>
 
       {!animation && (

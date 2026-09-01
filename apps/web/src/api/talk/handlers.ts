@@ -17,6 +17,7 @@ import {
   type UtteranceResponse,
 } from './types';
 import { formatGlossToEnglish, mapTextToSigns, pinLabel } from './mapper';
+import { DEFAULT_TALK_PIN_DEFS } from './defaults';
 import type { TalkStore } from './store';
 
 const PIN_FOLDERS: PinFolder[] = ['general', 'doctor', 'school', 'work'];
@@ -145,11 +146,7 @@ export function createTalkApi(deps: TalkApiDeps): TalkApi {
       // Mark seeded first so a concurrent listPins cannot insert a second set.
       await store.putProfile({ ...profile, pins_seeded: true });
 
-      const defaults: Array<{ label: string; signId: string }> = [
-        { label: 'Thank you', signId: 'sign-thank-you' },
-        { label: 'Bathroom', signId: 'sign-bathroom' },
-        { label: 'Help', signId: 'sign-help' },
-      ];
+      const defaults = DEFAULT_TALK_PIN_DEFS;
 
       const timestamp = iso(now());
       for (const [index, item] of defaults.entries()) {

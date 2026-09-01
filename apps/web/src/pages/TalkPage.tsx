@@ -19,6 +19,8 @@ import {
   getTalkApi,
   isTalkApiError,
   pinLabel,
+  fallbackTalkPins,
+  newTalkId,
   type PhrasePin,
   type PinFolder,
   type TalkProfile,
@@ -54,7 +56,7 @@ export function TalkPage() {
   const api = useMemo(() => getTalkApi(), []);
   const [profile, setProfile] = useState<TalkProfile | null>(null);
   const [usage, setUsage] = useState<UsageSnapshot | null>(null);
-  const [pins, setPins] = useState<PhrasePin[]>([]);
+  const [pins, setPins] = useState<PhrasePin[]>(() => fallbackTalkPins());
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [role, setRole] = useState<TalkRole>('i_sign');
   const [captions, setCaptions] = useState<CaptionLine[]>([]);
@@ -73,30 +75,57 @@ export function TalkPage() {
   const listenCtl = useRef<{ stop: () => void } | null>(null);
 
   const loadUsage = useCallback(async () => {
-    setUsage(await api.getUsage());
+    try {
+      setUsage(await api.getUsage());
+    } catch {
+      /* usage is optional chrome */
+    }
   }, [api]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const me = await api.getMe();
-      const nextPins = await api.listPins();
-      const savedId = sessionStorage.getItem(SESSION_KEY);
-      let session = savedId ? await api.getSession(savedId).catch(() => null) : null;
-      if (!session || session.status === 'ended') {
-        session = await api.createSession({ mode: 'same_phone', host_role: me.role_default });
-        sessionStorage.setItem(SESSION_KEY, session.id);
+      try {
+        const me = await api.getMe();
+        const nextPins = await api.listPins();
+        let savedId: string | null = null;
+        try {
+          savedId = sessionStorage.getItem(SESSION_KEY);
+        } catch {
+          savedId = null;
+        }
+        let session = savedId ? await api.getSession(savedId).catch(() => null) : null;
+        if (!session || session.status === 'ended') {
+          session = await api.createSession({ mode: 'same_phone', host_role: me.role_default });
+          try {
+            sessionStorage.setItem(SESSION_KEY, session.id);
+          } catch {
+            /* private mode */
+          }
+        }
+        const nextUsage = await api.getUsage();
+        if (cancelled) return;
+        setProfile(me);
+        setRole(me.role_default);
+        setPins(nextPins.length > 0 ? nextPins : fallbackTalkPins());
+        setSessionId(session.id);
+        setUsage(nextUsage);
+      } catch (err) {
+        if (cancelled) return;
+        setError(
+          err instanceof Error
+            ? `${err.message} Using offline pins.`
+            : 'Talk storage failed. Using offline pins.',
+        );
+        setPins((current) => (current.length > 0 ? current : fallbackTalkPins()));
+        try {
+          const session = await api.createSession({ mode: 'same_phone', host_role: 'i_sign' });
+          if (!cancelled) setSessionId(session.id);
+        } catch {
+          if (!cancelled) setSessionId(`local-${newTalkId()}`);
+        }
       }
-      const nextUsage = await api.getUsage();
-      if (cancelled) return;
-      setProfile(me);
-      setRole(me.role_default);
-      setPins(nextPins);
-      setSessionId(session.id);
-      setUsage(nextUsage);
-    })().catch((err) => {
-      if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to start Talk');
-    });
+    })();
     return () => {
       cancelled = true;
       listenCtl.current?.stop();
@@ -116,20 +145,69 @@ export function TalkPage() {
     if (speak) speakText(utterance.output_text);
   }, []);
 
+  const playLocal = useCallback(
+    (input: {
+      direction: TalkUtterance['direction'];
+      outputText: string;
+      signIds: string[];
+      speak: boolean;
+    }) => {
+      const utterance: TalkUtterance = {
+        id: newTalkId(),
+        session_id: sessionId ?? 'local',
+        direction: input.direction,
+        raw_input: {},
+        output_text: input.outputText,
+        output_sign_ids: input.signIds,
+        duration_ms: 0,
+        created_at: new Date().toISOString(),
+      };
+      applyPlayback(utterance, input.speak);
+    },
+    [applyPlayback, sessionId],
+  );
+
   const submitUtterance = useCallback(
     async (
       direction: TalkUtterance['direction'],
       raw_input: TalkUtterance['raw_input'],
       opts?: { speak?: boolean },
     ) => {
-      if (!sessionId || busy) return;
+      if (busy) return;
+      const speak =
+        opts?.speak ?? (direction === 'pin' || direction === 'sign_to_text');
+
+      const playFromFailure = () => {
+        if (direction === 'pin' && raw_input.pin_id) {
+          const pin = pins.find((item) => item.id === raw_input.pin_id);
+          if (pin) {
+            playLocal({
+              direction,
+              outputText: pinLabel(pin, dictionaryCatalog),
+              signIds: pin.sign_id ? [pin.sign_id] : [],
+              speak,
+            });
+            return;
+          }
+        }
+        const text = raw_input.text ?? raw_input.transcript;
+        if (text) {
+          playLocal({ direction, outputText: text, signIds: [], speak });
+        }
+      };
+
+      if (!sessionId || sessionId.startsWith('local-')) {
+        playFromFailure();
+        return;
+      }
+
       setBusy(true);
       setError(null);
       try {
         const result = await api.createUtterance(
           sessionId,
           { direction, raw_input, client_duration_ms: 0 },
-          crypto.randomUUID(),
+          newTalkId(),
         );
         setUsage((prev) =>
           prev
@@ -141,8 +219,6 @@ export function TalkPage() {
               }
             : prev,
         );
-        const speak =
-          opts?.speak ?? (direction === 'pin' || direction === 'sign_to_text');
         applyPlayback(result.utterance, speak);
         if (result.usage.capped) setUpgradeOpen(true);
       } catch (err) {
@@ -151,12 +227,13 @@ export function TalkPage() {
           setUpgradeOpen(true);
         } else {
           setError(err instanceof Error ? err.message : 'Could not send phrase');
+          playFromFailure();
         }
       } finally {
         setBusy(false);
       }
     },
-    [api, applyPlayback, busy, loadUsage, sessionId],
+    [api, applyPlayback, busy, loadUsage, pins, playLocal, sessionId],
   );
 
   const onPin = (pin: PhrasePin) => {
@@ -232,8 +309,12 @@ export function TalkPage() {
   const swapRole = async () => {
     const next: TalkRole = role === 'i_sign' ? 'i_speak' : 'i_sign';
     setRole(next);
-    const me = await api.patchMe({ role_default: next });
-    setProfile(me);
+    try {
+      const me = await api.patchMe({ role_default: next });
+      setProfile(me);
+    } catch {
+      /* local role swap still applies */
+    }
   };
 
   const replayLast = () => {
@@ -247,51 +328,71 @@ export function TalkPage() {
   const saveLastAsPin = async () => {
     const utterance = lastUtterance.current;
     if (!utterance?.output_text) return;
-    const created = await api.createPin({
-      custom_text: utterance.output_text,
-      sign_id: utterance.output_sign_ids[0],
-    });
-    setPins(await api.listPins());
-    setError(`Saved “${created.custom_text}” as a pin.`);
+    try {
+      const created = await api.createPin({
+        custom_text: utterance.output_text,
+        sign_id: utterance.output_sign_ids[0],
+      });
+      setPins(await api.listPins());
+      setError(`Saved “${created.custom_text}” as a pin.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save pin');
+    }
   };
 
   const savePinEditor = async () => {
     if (!pinEditor) return;
-    if (pinEditor.id) {
-      await api.patchPin(pinEditor.id, {
-        custom_text: pinEditor.custom_text,
-        sign_id: pinEditor.sign_id || null,
-        folder: pinEditor.folder,
-      });
-    } else {
-      await api.createPin({
-        custom_text: pinEditor.custom_text,
-        sign_id: pinEditor.sign_id || undefined,
-        folder: pinEditor.folder,
-      });
+    try {
+      if (pinEditor.id) {
+        await api.patchPin(pinEditor.id, {
+          custom_text: pinEditor.custom_text,
+          sign_id: pinEditor.sign_id || null,
+          folder: pinEditor.folder,
+        });
+      } else {
+        await api.createPin({
+          custom_text: pinEditor.custom_text,
+          sign_id: pinEditor.sign_id || undefined,
+          folder: pinEditor.folder,
+        });
+      }
+      setPins(await api.listPins());
+      setPinEditor(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save pin');
     }
-    setPins(await api.listPins());
-    setPinEditor(null);
   };
 
   const deletePin = async (id: string) => {
-    await api.deletePin(id);
-    setPins(await api.listPins());
-    setPinEditor(null);
+    try {
+      await api.deletePin(id);
+      setPins(await api.listPins());
+      setPinEditor(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete pin');
+    }
   };
 
   const startTrial = async () => {
-    const me = await api.patchMe({ plan: 'trial' });
-    setProfile(me);
-    await loadUsage();
-    setUpgradeOpen(false);
+    try {
+      const me = await api.patchMe({ plan: 'trial' });
+      setProfile(me);
+      await loadUsage();
+      setUpgradeOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not start trial');
+    }
   };
 
   const upgradePro = async () => {
-    const me = await api.patchMe({ plan: 'pro' });
-    setProfile(me);
-    await loadUsage();
-    setUpgradeOpen(false);
+    try {
+      const me = await api.patchMe({ plan: 'pro' });
+      setProfile(me);
+      await loadUsage();
+      setUpgradeOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not upgrade');
+    }
   };
 
   const currentSign = playback?.signs[0] ?? getSignById('sign-hello') ?? null;
