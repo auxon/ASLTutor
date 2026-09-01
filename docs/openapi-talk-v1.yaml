@@ -1,0 +1,665 @@
+openapi: 3.1.0
+info:
+  title: SignFlow Talk API
+  version: 1.0.0
+  summary: Talk mode communication-aid contract (slice 1)
+  description: |
+    Talk is a **communication aid, not a certified interpreter**.
+
+    Slice 1 implements pins, talk sessions, utterances (`pin`, `text_to_sign`,
+    `speech_to_sign`, `sign_to_text` via gloss list), signs, and me/usage.
+
+    **Runtime:** SignFlow is a client-side SPA. Slice 1 fulfills this contract
+    in-process with IndexedDB (Dexie) persistence — see `apps/web/src/api/talk`.
+    A future HTTP server should keep these paths, statuses, and schemas.
+
+    **Not in slice 1:** live MediaPipe sign→text quality, linked two-phone
+    sessions, WebSocket, and Stripe billing webhooks (Pro checkout already
+    exists as product copy; do not duplicate a second billing stack).
+  license:
+    name: Educational demo
+
+servers:
+  - url: /v1
+    description: Logical Talk API prefix (in-app slice 1; HTTP later)
+  - url: /ASLTutor/v1
+    description: Same contract when hosted under the ASLTutor subpath
+
+tags:
+  - name: me
+  - name: pins
+  - name: talk
+  - name: signs
+  - name: future
+
+paths:
+  /me:
+    get:
+      tags: [me]
+      summary: Current user stub
+      description: |
+        Auth is a local session stub (`local-user`) until SignFlow auth exists.
+        `plan` is `free` | `trial` | `pro`. Expired trials are treated as free.
+      operationId: getMe
+      responses:
+        '200':
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalkProfile'
+    patch:
+      tags: [me]
+      summary: Update plan or default role (local stub)
+      description: |
+        Slice 1 stores plan locally. `plan=trial` starts a 7-day window.
+        Replace with Stripe Customer Portal / Checkout when billing is wired.
+      operationId: patchMe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchMeInput'
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalkProfile'
+
+  /me/usage:
+    get:
+      tags: [me]
+      summary: Today's usage counters
+      operationId: getMyUsage
+      responses:
+        '200':
+          description: Usage snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageSnapshot'
+
+  /pins:
+    get:
+      tags: [pins]
+      summary: List phrase pins
+      description: First call seeds Thank you, Bathroom, and Help when the catalog has those signs.
+      operationId: listPins
+      responses:
+        '200':
+          description: Pins ordered by sort_order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PhrasePin'
+    post:
+      tags: [pins]
+      summary: Create a phrase pin
+      operationId: createPin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePinInput'
+      responses:
+        '200':
+          description: Created pin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhrasePin'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+
+  /pins/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PinId'
+    patch:
+      tags: [pins]
+      summary: Update a pin
+      operationId: patchPin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchPinInput'
+      responses:
+        '200':
+          description: Updated pin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhrasePin'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+    delete:
+      tags: [pins]
+      summary: Delete a pin
+      operationId: deletePin
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/Error'
+
+  /pins/reorder:
+    put:
+      tags: [pins]
+      summary: Reorder pins
+      operationId: reorderPins
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderPinsInput'
+      responses:
+        '200':
+          description: Pins in the new order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PhrasePin'
+        '400':
+          $ref: '#/components/responses/Error'
+
+  /talk/sessions:
+    post:
+      tags: [talk]
+      summary: Start a Talk session
+      operationId: createTalkSession
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionInput'
+      responses:
+        '200':
+          description: Live session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalkSession'
+
+  /talk/sessions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [talk]
+      summary: Get a Talk session
+      operationId: getTalkSession
+      responses:
+        '200':
+          description: Session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalkSession'
+        '404':
+          $ref: '#/components/responses/Error'
+    post:
+      tags: [future]
+      summary: Join a linked-phone session (not in slice 1)
+      description: Reserved. Linked two-phone sessions are out of scope for slice 1.
+      operationId: joinTalkSession
+      responses:
+        '501':
+          $ref: '#/components/responses/Error'
+
+  /talk/sessions/{id}/end:
+    post:
+      tags: [talk]
+      summary: End a Talk session
+      operationId: endTalkSession
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Ended session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalkSession'
+        '404':
+          $ref: '#/components/responses/Error'
+
+  /talk/sessions/{id}/utterances:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [talk]
+      summary: List utterances in a session
+      operationId: listUtterances
+      responses:
+        '200':
+          description: Utterances oldest-first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TalkUtterance'
+        '404':
+          $ref: '#/components/responses/Error'
+    post:
+      tags: [talk]
+      summary: Create an utterance
+      description: |
+        Requires `Idempotency-Key`. Free users may send 10 Talk phrases per UTC day.
+        The 10th phrase still completes (soft cap); the 11th returns `403 FREE_CAP`
+        so the UI can finish the current animation, then show an upgrade/trial sheet.
+
+        Directions in slice 1:
+        - `pin` — play the pin's sign / mapped text
+        - `text_to_sign` — map English to dictionary signs (unknown words fingerspell)
+        - `speech_to_sign` — same mapper using `transcript`
+        - `sign_to_text` — accept `gloss[]` and format English (no camera recognition)
+      operationId: createUtterance
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUtteranceInput'
+      responses:
+        '200':
+          description: Utterance plus usage
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UtteranceResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          description: Free daily cap reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FreeCapError'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+
+  /talk/sessions/{id}/ws:
+    get:
+      tags: [future]
+      summary: WebSocket for linked sessions (not in slice 1)
+      operationId: talkSessionWebSocket
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '501':
+          $ref: '#/components/responses/Error'
+
+  /signs:
+    get:
+      tags: [signs]
+      summary: List dictionary signs
+      operationId: listSigns
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Filter by gloss, English label, or tag
+      responses:
+        '200':
+          description: Signs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CatalogSign'
+
+  /signs/{id}:
+    get:
+      tags: [signs]
+      summary: Get one sign
+      operationId: getSign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sign
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogSign'
+        '404':
+          $ref: '#/components/responses/Error'
+
+  /billing/webhook:
+    post:
+      tags: [future]
+      summary: Stripe webhook (not in this Talk slice)
+      description: |
+        Do not add a second billing implementation here. If Stripe already exists
+        elsewhere in SignFlow, keep using it. Slice 1 stores plan locally.
+      operationId: billingWebhook
+      responses:
+        '501':
+          $ref: '#/components/responses/Error'
+
+components:
+  parameters:
+    PinId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    SessionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+
+  schemas:
+    TalkPlan:
+      type: string
+      enum: [free, trial, pro]
+    TalkRole:
+      type: string
+      enum: [i_sign, i_speak]
+    PinFolder:
+      type: string
+      enum: [general, doctor, school, work]
+    TalkSessionMode:
+      type: string
+      enum: [same_phone, linked, solo_show]
+    TalkSessionStatus:
+      type: string
+      enum: [live, ended]
+    TalkDirection:
+      type: string
+      enum: [pin, text_to_sign, speech_to_sign, sign_to_text]
+
+    TalkProfile:
+      type: object
+      required: [id, plan, role_default]
+      properties:
+        id:
+          type: string
+        plan:
+          $ref: '#/components/schemas/TalkPlan'
+        role_default:
+          $ref: '#/components/schemas/TalkRole'
+        trial_ends_at:
+          type: ['string', 'null']
+          format: date-time
+
+    PatchMeInput:
+      type: object
+      properties:
+        plan:
+          $ref: '#/components/schemas/TalkPlan'
+        role_default:
+          $ref: '#/components/schemas/TalkRole'
+
+    UsageSnapshot:
+      type: object
+      required: [talk_phrases_used, talk_seconds_used, capped, day]
+      properties:
+        talk_phrases_used:
+          type: integer
+        talk_seconds_used:
+          type: integer
+        practice_checks_used:
+          type: integer
+        talk_phrases_limit:
+          type: ['integer', 'null']
+          description: 10 for free; null when trial or pro (unlimited)
+        capped:
+          type: boolean
+        day:
+          type: string
+          format: date
+
+    PhrasePin:
+      type: object
+      required: [id, user_id, folder, sort_order, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        sign_id:
+          type: string
+        custom_text:
+          type: string
+        folder:
+          $ref: '#/components/schemas/PinFolder'
+        sort_order:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreatePinInput:
+      type: object
+      properties:
+        sign_id:
+          type: string
+        custom_text:
+          type: string
+        folder:
+          $ref: '#/components/schemas/PinFolder'
+
+    PatchPinInput:
+      type: object
+      properties:
+        sign_id:
+          type: ['string', 'null']
+        custom_text:
+          type: ['string', 'null']
+        folder:
+          $ref: '#/components/schemas/PinFolder'
+        sort_order:
+          type: integer
+
+    ReorderPinsInput:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+
+    TalkSession:
+      type: object
+      required: [id, host_user_id, mode, host_role, status, created_at]
+      properties:
+        id:
+          type: string
+        host_user_id:
+          type: string
+        mode:
+          $ref: '#/components/schemas/TalkSessionMode'
+        host_role:
+          $ref: '#/components/schemas/TalkRole'
+        status:
+          $ref: '#/components/schemas/TalkSessionStatus'
+        link_code:
+          type: string
+          description: Reserved for linked-phone sessions (unused in slice 1)
+        created_at:
+          type: string
+          format: date-time
+        ended_at:
+          type: string
+          format: date-time
+
+    CreateSessionInput:
+      type: object
+      properties:
+        mode:
+          $ref: '#/components/schemas/TalkSessionMode'
+        host_role:
+          $ref: '#/components/schemas/TalkRole'
+
+    UtteranceRawInput:
+      type: object
+      properties:
+        pin_id:
+          type: string
+        text:
+          type: string
+        transcript:
+          type: string
+        gloss:
+          type: array
+          items:
+            type: string
+
+    CreateUtteranceInput:
+      type: object
+      required: [direction, raw_input]
+      properties:
+        direction:
+          $ref: '#/components/schemas/TalkDirection'
+        raw_input:
+          $ref: '#/components/schemas/UtteranceRawInput'
+        client_duration_ms:
+          type: integer
+          minimum: 0
+
+    TalkUtterance:
+      type: object
+      required:
+        [id, session_id, direction, raw_input, output_text, output_sign_ids, duration_ms, created_at]
+      properties:
+        id:
+          type: string
+        session_id:
+          type: string
+        direction:
+          $ref: '#/components/schemas/TalkDirection'
+        raw_input:
+          $ref: '#/components/schemas/UtteranceRawInput'
+        output_text:
+          type: string
+        output_sign_ids:
+          type: array
+          items:
+            type: string
+        confidence:
+          type: number
+        duration_ms:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        idempotency_key:
+          type: string
+
+    UtteranceResponse:
+      type: object
+      required: [utterance, usage]
+      properties:
+        utterance:
+          $ref: '#/components/schemas/TalkUtterance'
+        usage:
+          type: object
+          required: [talk_phrases_used, talk_seconds_used, capped]
+          properties:
+            talk_phrases_used:
+              type: integer
+            talk_seconds_used:
+              type: integer
+            capped:
+              type: boolean
+
+    CatalogSign:
+      type: object
+      required: [id, gloss, label_en, tags, avatar_clip, is_free_tier]
+      properties:
+        id:
+          type: string
+        gloss:
+          type: string
+        label_en:
+          type: string
+        english:
+          type: array
+          items:
+            type: string
+        tags:
+          type: array
+          items:
+            type: string
+        avatar_clip:
+          type: string
+        is_free_tier:
+          type: boolean
+
+    ApiError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            trial_available:
+              type: boolean
+
+    FreeCapError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              const: FREE_CAP
+            message:
+              type: string
+            trial_available:
+              type: boolean

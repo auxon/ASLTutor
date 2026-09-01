@@ -9,7 +9,8 @@
     "lint": "oxlint src",
     "typecheck": "tsc -b --noEmit",
     "preview": "vite preview",
-    "preview:subpath": "vite preview --base /ASLTutor/"
+    "preview:subpath": "vite preview --base /ASLTutor/",
+    "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@asl/sign-schema": "*",
@@ -39,6 +40,7 @@
     "tailwindcss": "^4.0.17",
     "typescript": "~6.0.2",
     "vite": "^8.2.0",
-    "vite-plugin-pwa": "^0.21.2"
+    "vite-plugin-pwa": "^0.21.2",
+    "vitest": "^3.2.7"
   }
 }
