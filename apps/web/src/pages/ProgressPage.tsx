@@ -29,8 +29,12 @@ export function ProgressPage() {
 
   useEffect(() => {
     const api = getTalkApi();
-    api.getMe().then(setProfile);
-    api.getUsage().then(setTalkUsage);
+    void api.getMe().then(setProfile).catch(() => {
+      setProfile(null);
+    });
+    void api.getUsage().then(setTalkUsage).catch(() => {
+      setTalkUsage(null);
+    });
   }, []);
 
   const handleReview = async (record: MasteryRecord, quality: number) => {
@@ -79,13 +83,25 @@ export function ProgressPage() {
             </p>
           )}
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => void setPlan('free')}>
+            <Button
+              size="sm"
+              variant={profile?.plan === 'free' ? 'primary' : 'outline'}
+              onClick={() => void setPlan('free')}
+            >
               Free
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => void setPlan('trial')}>
+            <Button
+              size="sm"
+              variant={profile?.plan === 'trial' ? 'primary' : 'secondary'}
+              onClick={() => void setPlan('trial')}
+            >
               Start 7-day trial
             </Button>
-            <Button size="sm" onClick={() => void setPlan('pro')}>
+            <Button
+              size="sm"
+              variant={profile?.plan === 'pro' ? 'primary' : 'outline'}
+              onClick={() => void setPlan('pro')}
+            >
               Pro (local)
             </Button>
             <Link
