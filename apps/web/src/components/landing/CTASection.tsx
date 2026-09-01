@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Hand } from 'lucide-react';
+import { ArrowRight, Hand, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 export function CTASection() {
@@ -21,8 +21,8 @@ export function CTASection() {
               Ready to start signing?
             </h2>
             <p className="text-muted-foreground text-lg max-w-lg mx-auto mb-8">
-              Jump into structured lessons or browse the full dictionary — no account required.
-              Your progress is saved locally in your browser.
+              Jump into structured lessons, open Talk to sign a phrase, or browse the dictionary —
+              no account required. Your progress is saved locally in your browser.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -33,7 +33,8 @@ export function CTASection() {
                 </Button>
               </Link>
               <Link to="/talk">
-                <Button variant="outline" size="lg" className="min-w-[180px]">
+                <Button variant="secondary" size="lg" className="gap-2 min-w-[180px]">
+                  <MessageCircle className="h-4 w-4" aria-hidden="true" />
                   Open Talk
                 </Button>
               </Link>

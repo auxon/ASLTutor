@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Play, Sparkles } from 'lucide-react';
+import { ArrowRight, MessageCircle, Play, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { dictionary, lessons } from '@/data/content';
 
@@ -38,6 +38,12 @@ export function HeroSection() {
             <Button size="lg" className="gap-2 min-w-[180px]">
               Start Learning
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </Link>
+          <Link to="/talk">
+            <Button variant="secondary" size="lg" className="gap-2 min-w-[180px]">
+              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              Try Talk
             </Button>
           </Link>
           <a href="#demo">

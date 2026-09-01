@@ -99,9 +99,16 @@ export function Layout({ children }: { children: ReactNode }) {
           )}
 
           {isLanding && (
-            <Link to="/lessons" className="md:hidden">
-              <Button size="sm">Get Started</Button>
-            </Link>
+            <div className="flex items-center gap-2 md:hidden">
+              <Link to="/talk">
+                <Button size="sm" variant="secondary">
+                  Talk
+                </Button>
+              </Link>
+              <Link to="/lessons">
+                <Button size="sm">Get Started</Button>
+              </Link>
+            </div>
           )}
         </div>
       </header>
