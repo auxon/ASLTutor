@@ -207,6 +207,22 @@ const COLOR_SIGNS: ASLSignClip[] = [
   },
 ];
 
+const DAILY_SIGNS: ASLSignClip[] = [
+  {
+    id: 'sign-bathroom',
+    gloss: 'BATHROOM',
+    english: ['Bathroom', 'Restroom', 'Toilet'],
+    category: 'daily',
+    difficulty: 1,
+    clipUrl: '/assets/clips/bathroom.json',
+    duration: 2,
+    handshapes: { right: 'T' },
+    palmOrientation: 'Facing out',
+    location: 'Neutral space',
+    movement: 'Shake T-hand side to side',
+  },
+];
+
 const FAMILY_SIGNS: ASLSignClip[] = [
   {
     id: 'sign-mother',
@@ -246,6 +262,7 @@ export function buildDictionary(): Dictionary {
     ...QUESTION_SIGNS,
     ...COLOR_SIGNS,
     ...FAMILY_SIGNS,
+    ...DAILY_SIGNS,
   ];
 
   return {
@@ -543,9 +560,14 @@ export function getSignById(id: string): ASLSignClip | undefined {
 export function getAnimationBySignId(signId: string) {
   const sign = getSignById(signId);
   if (!sign) return undefined;
-  const gloss = sign.gloss;
+  const slug = signId.replace(/^sign-/, '');
+  const glossSlug = sign.gloss.toLowerCase().replace(/_/g, '-');
   return dictionary.animations.find(
-    (a) => a.gloss === gloss || a.id === `anim-${signId.replace('sign-', '')}`,
+    (a) =>
+      a.gloss === sign.gloss ||
+      a.id === `anim-${slug}` ||
+      a.id === `anim-${glossSlug}` ||
+      a.id === `anim-${sign.gloss.toLowerCase()}`,
   );
 }
 

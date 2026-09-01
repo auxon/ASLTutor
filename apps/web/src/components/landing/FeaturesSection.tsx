@@ -3,6 +3,7 @@ import {
   Camera,
   GraduationCap,
   Hand,
+  MessageCircle,
   RefreshCw,
   Smartphone,
 } from 'lucide-react';
@@ -38,6 +39,12 @@ const FEATURES = [
     title: 'Spaced Repetition',
     description:
       'Per-sign mastery tracking and a smart review queue help you retain what you learn over time.',
+  },
+  {
+    icon: MessageCircle,
+    title: 'Talk mode',
+    description:
+      'A communication aid that plays 3D signs from pins, typed phrases, or speech — with captions. Not a certified interpreter.',
   },
   {
     icon: Smartphone,

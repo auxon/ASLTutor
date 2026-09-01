@@ -213,10 +213,41 @@ export function buildFingerspellingAnimations(): SignAnimation[] {
   return animations;
 }
 
+export function composeSignSequence(id: string, parts: SignAnimation[]): SignAnimation | null {
+  if (parts.length === 0) return null;
+  if (parts.length === 1) return { ...parts[0], id };
+
+  const pause = 0.12;
+  const totalDuration =
+    parts.reduce((sum, part) => sum + part.duration, 0) + pause * (parts.length - 1);
+  const keyframes: SignKeyframe[] = [];
+  let elapsed = 0;
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    for (const keyframe of part.keyframes) {
+      const t = totalDuration === 0 ? 0 : (elapsed + keyframe.t * part.duration) / totalDuration;
+      keyframes.push({ ...keyframe, t: Math.min(1, Math.max(0, t)) });
+    }
+    elapsed += part.duration + pause;
+  }
+
+  if (keyframes.length > 0 && keyframes[keyframes.length - 1].t < 1) {
+    keyframes.push({ ...keyframes[keyframes.length - 1], t: 1 });
+  }
+
+  return {
+    id,
+    gloss: parts.map((part) => part.gloss).join(' '),
+    duration: totalDuration,
+    keyframes,
+  };
+}
+
 export function buildSignAnimations(): SignAnimation[] {
   const motionMap: Record<string, 'wave' | 'nod' | 'shake' | 'circle'> = {
     HELLO: 'wave',
-    THANK_YOU: 'nod',
+    'THANK-YOU': 'nod',
     PLEASE: 'circle',
     YES: 'nod',
     NO: 'shake',
@@ -230,29 +261,31 @@ export function buildSignAnimations(): SignAnimation[] {
     GREEN: 'shake',
     MOTHER: 'nod',
     FATHER: 'nod',
+    BATHROOM: 'shake',
   };
 
-  const signs = [
-    'HELLO',
-    'THANK_YOU',
-    'PLEASE',
-    'YES',
-    'NO',
-    'HELP',
-    'NAME',
-    'WHAT',
-    'WHO',
-    'WHERE',
-    'RED',
-    'BLUE',
-    'GREEN',
-    'MOTHER',
-    'FATHER',
-  ];
+  const handshapeMap: Record<string, string> = {
+    HELLO: '5',
+    'THANK-YOU': '5',
+    PLEASE: '5',
+    YES: 'S',
+    NO: '1',
+    HELP: 'A',
+    NAME: 'H',
+    WHAT: '1',
+    WHO: '1',
+    WHERE: '1',
+    RED: '1',
+    BLUE: 'B',
+    GREEN: 'G',
+    MOTHER: '5',
+    FATHER: '5',
+    BATHROOM: 'T',
+  };
 
-  return signs.map((gloss) => {
+  return Object.keys(motionMap).map((gloss) => {
     const movement = motionMap[gloss] ?? 'nod';
-    const handshape = gloss === 'THANK_YOU' ? '5' : gloss === 'PLEASE' ? '5' : gloss === 'YES' ? 'S' : gloss === 'NO' ? '1' : gloss === 'HELP' ? 'A' : gloss === 'NAME' ? 'H' : gloss === 'WHAT' ? '1' : gloss === 'WHO' ? '1' : gloss === 'WHERE' ? '1' : gloss === 'RED' ? '1' : gloss === 'BLUE' ? 'B' : gloss === 'GREEN' ? 'G' : gloss === 'MOTHER' ? '5' : gloss === 'FATHER' ? '5' : '5';
+    const handshape = handshapeMap[gloss] ?? '5';
     return createMotionAnimation(`anim-${gloss.toLowerCase()}`, gloss, handshape, movement);
   });
 }

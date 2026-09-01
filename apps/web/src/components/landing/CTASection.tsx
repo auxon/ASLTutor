@@ -32,6 +32,11 @@ export function CTASection() {
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </Link>
+              <Link to="/talk">
+                <Button variant="outline" size="lg" className="min-w-[180px]">
+                  Open Talk
+                </Button>
+              </Link>
               <Link to="/dictionary">
                 <Button variant="outline" size="lg" className="min-w-[180px]">
                   Browse dictionary

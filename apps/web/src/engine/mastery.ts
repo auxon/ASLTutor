@@ -1,4 +1,11 @@
-import Dexie, { type EntityTable } from 'dexie';
+import Dexie, { type EntityTable, type Table } from 'dexie';
+import type {
+  PhrasePin,
+  TalkProfile,
+  TalkSession,
+  TalkUtterance,
+  UsageCounter,
+} from '@/api/talk/types';
 
 export interface MasteryRecord {
   signId: string;
@@ -28,10 +35,15 @@ export interface PracticeSession {
   mode: 'receptive' | 'expressive' | 'review';
 }
 
-class SignFlowDatabase extends Dexie {
+export class SignFlowDatabase extends Dexie {
   mastery!: EntityTable<MasteryRecord, 'signId'>;
   dailyGoals!: EntityTable<DailyGoal, 'id'>;
   sessions!: EntityTable<PracticeSession, 'id'>;
+  talkProfile!: EntityTable<TalkProfile, 'id'>;
+  phrasePins!: EntityTable<PhrasePin, 'id'>;
+  talkSessions!: EntityTable<TalkSession, 'id'>;
+  talkUtterances!: EntityTable<TalkUtterance, 'id'>;
+  usageCounters!: Table<UsageCounter, [string, string]>;
 
   constructor() {
     super('SignFlowDB');
@@ -39,6 +51,16 @@ class SignFlowDatabase extends Dexie {
       mastery: 'signId, nextReview, mastery',
       dailyGoals: 'id, date',
       sessions: '++id, signId, timestamp',
+    });
+    this.version(2).stores({
+      mastery: 'signId, nextReview, mastery',
+      dailyGoals: 'id, date',
+      sessions: '++id, signId, timestamp',
+      talkProfile: 'id',
+      phrasePins: 'id, user_id, sort_order',
+      talkSessions: 'id, host_user_id, status',
+      talkUtterances: 'id, session_id, idempotency_key',
+      usageCounters: '[user_id+day], user_id, day',
     });
   }
 }

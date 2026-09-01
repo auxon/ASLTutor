@@ -8,6 +8,7 @@ import { SignDetailPage } from '@/pages/SignDetailPage';
 import { LessonsPage } from '@/pages/LessonsPage';
 import { PracticePage } from '@/pages/PracticePage';
 import { ProgressPage } from '@/pages/ProgressPage';
+import { TalkPage } from '@/pages/TalkPage';
 
 const queryClient = new QueryClient();
 const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -24,6 +25,8 @@ export default function App() {
             <Route path="/lessons" element={<LessonsPage />} />
             <Route path="/lessons/:moduleId" element={<LessonsPage />} />
             <Route path="/practice" element={<PracticePage />} />
+            <Route path="/talk" element={<TalkPage />} />
+            <Route path="/profile" element={<ProgressPage />} />
             <Route path="/progress" element={<ProgressPage />} />
           </Routes>
         </Layout>

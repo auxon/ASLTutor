@@ -11,6 +11,9 @@ Learn American Sign Language with interactive 3D hands, structured lessons, came
 - **Camera Practice** — MediaPipe hand tracking with conservative pose feedback
 - **Spaced Repetition** — Per-sign mastery tracking and review queue (IndexedDB)
 - **PWA** — Offline-capable after first load
+- **Talk** — Communication aid (not a certified interpreter): phrase pins, text/speech→sign, 3D signing stage, captions, free daily cap
+
+## Features
 
 ## Tech Stack
 
@@ -29,6 +32,8 @@ npm run dev
 ```
 
 Open http://localhost:5173
+
+Talk mode lives at **http://localhost:5173/ASLTutor/talk** (the Vite `base` is `/ASLTutor/`). Tap **Thank you** / **Bathroom** / **Help**, or type a phrase. Free accounts get 10 Talk phrases per day; switch plan on **Profile**.
 
 ## Project Structure
 

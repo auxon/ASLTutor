@@ -1,14 +1,22 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpen, GraduationCap, Hand, Home, BarChart3 } from 'lucide-react';
+import { BookOpen, Hand, Library, MessageCircle, Scan, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
+import type { ReactNode } from 'react';
 
-const NAV_ITEMS = [
-  { to: '/', label: 'Home', icon: Home },
-  { to: '/dictionary', label: 'Dictionary', icon: BookOpen },
-  { to: '/lessons', label: 'Lessons', icon: GraduationCap },
-  { to: '/practice', label: 'Practice', icon: Hand },
-  { to: '/progress', label: 'Progress', icon: BarChart3 },
+const DESKTOP_NAV = [
+  { to: '/dictionary', label: 'Dictionary', icon: Library },
+  { to: '/lessons', label: 'Learn', icon: BookOpen },
+  { to: '/practice', label: 'Practice', icon: Scan },
+  { to: '/talk', label: 'Talk', icon: MessageCircle },
+  { to: '/profile', label: 'Profile', icon: User },
+];
+
+const MOBILE_NAV = [
+  { to: '/lessons', label: 'Learn', icon: BookOpen },
+  { to: '/practice', label: 'Practice', icon: Scan },
+  { to: '/talk', label: 'Talk', icon: MessageCircle },
+  { to: '/profile', label: 'Profile', icon: User },
 ];
 
 const LANDING_ANCHORS = [
@@ -17,9 +25,16 @@ const LANDING_ANCHORS = [
   { href: '#how-it-works', label: 'How it works' },
 ];
 
-export function Layout({ children }: { children: React.ReactNode }) {
+function navActive(pathname: string, to: string): boolean {
+  if (to === '/') return pathname === '/';
+  if (to === '/profile') return pathname === '/profile' || pathname.startsWith('/progress');
+  return pathname === to || pathname.startsWith(`${to}/`);
+}
+
+export function Layout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const isLanding = location.pathname === '/';
+  const isTalk = location.pathname.startsWith('/talk');
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -53,23 +68,28 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   {label}
                 </a>
               ))}
+              <Link to="/talk">
+                <Button size="sm" variant="secondary">
+                  Talk
+                </Button>
+              </Link>
               <Link to="/lessons">
                 <Button size="sm">Get Started</Button>
               </Link>
             </nav>
           ) : (
             <nav aria-label="Main navigation" className="hidden md:flex items-center gap-1">
-              {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+              {DESKTOP_NAV.map(({ to, label, icon: Icon }) => (
                 <Link
                   key={to}
                   to={to}
                   className={cn(
                     'inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                    location.pathname === to || (to !== '/' && location.pathname.startsWith(to))
+                    navActive(location.pathname, to)
                       ? 'bg-secondary text-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50',
                   )}
-                  aria-current={location.pathname === to ? 'page' : undefined}
+                  aria-current={navActive(location.pathname, to) ? 'page' : undefined}
                 >
                   <Icon className="h-4 w-4" aria-hidden="true" />
                   {label}
@@ -88,7 +108,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       <main
         id="main-content"
-        className={cn('flex-1', isLanding ? 'w-full' : 'container mx-auto px-4 py-6')}
+        className={cn(
+          'flex-1',
+          isLanding ? 'w-full' : isTalk ? 'container mx-auto px-4 pt-3 pb-2' : 'container mx-auto px-4 py-6',
+        )}
       >
         {children}
       </main>
@@ -99,29 +122,32 @@ export function Layout({ children }: { children: React.ReactNode }) {
             aria-label="Mobile navigation"
             className="md:hidden sticky bottom-0 border-t border-border bg-background/95 backdrop-blur"
           >
-            <div className="flex justify-around py-2">
-              {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  className={cn(
-                    'flex flex-col items-center gap-1 px-3 py-1 text-xs',
-                    location.pathname === to || (to !== '/' && location.pathname.startsWith(to))
-                      ? 'text-primary'
-                      : 'text-muted-foreground',
-                  )}
-                  aria-current={location.pathname === to ? 'page' : undefined}
-                >
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                  {label}
-                </Link>
-              ))}
+            <div className="flex justify-around py-2 px-1">
+              {MOBILE_NAV.map(({ to, label, icon: Icon }) => {
+                const active = navActive(location.pathname, to);
+                return (
+                  <Link
+                    key={to}
+                    to={to}
+                    className={cn(
+                      'flex flex-col items-center gap-0.5 px-3 py-1 text-xs rounded-xl min-w-[64px]',
+                      active ? 'text-primary border border-primary/70' : 'text-muted-foreground border border-transparent',
+                    )}
+                    aria-current={active ? 'page' : undefined}
+                  >
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                    {label}
+                  </Link>
+                );
+              })}
             </div>
           </nav>
 
-          <footer className="border-t border-border py-4 text-center text-xs text-muted-foreground hidden md:block">
-            SignFlow ASL — Learn with interactive 3D hands. Content for educational purposes.
-          </footer>
+          {!isTalk && (
+            <footer className="border-t border-border py-4 text-center text-xs text-muted-foreground hidden md:block">
+              SignFlow ASL — Learn with interactive 3D hands. Content for educational purposes.
+            </footer>
+          )}
         </>
       )}
     </div>
