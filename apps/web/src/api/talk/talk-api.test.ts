@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createTalkApi } from './handlers';
 import { mapTextToSigns, formatGlossToEnglish } from './mapper';
-import { createMemoryTalkStore } from './store';
+import { createMemoryTalkStore, createResilientTalkStore, type TalkStore } from './store';
 import { TalkApiError, type CatalogSign } from './types';
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -224,5 +224,72 @@ describe('Talk utterances', () => {
     await expect(
       api.createUtterance(session.id, { direction: 'text_to_sign', raw_input: { text: 'Help' } }),
     ).rejects.toMatchObject({ status: 400, body: { error: { code: 'IDEMPOTENCY_REQUIRED' } } });
+  });
+});
+
+describe('createResilientTalkStore', () => {
+  it('falls back to memory after IndexedDB-style failures and still seeds pins', async () => {
+    const fallback = createMemoryTalkStore();
+    const broken: TalkStore = {
+      getProfile: async () => {
+        throw new Error('IndexedDB unavailable');
+      },
+      putProfile: async () => {
+        throw new Error('IndexedDB unavailable');
+      },
+      listPins: async () => {
+        throw new Error('IndexedDB unavailable');
+      },
+      getPin: async () => {
+        throw new Error('IndexedDB unavailable');
+      },
+      putPin: async () => {
+        throw new Error('IndexedDB unavailable');
+      },
+      deletePin: async () => {
+        throw new Error('IndexedDB unavailable');
+      },
+      getSession: async () => {
+        throw new Error('IndexedDB unavailable');
+      },
+      putSession: async () => {
+        throw new Error('IndexedDB unavailable');
+      },
+      listUtterances: async () => {
+        throw new Error('IndexedDB unavailable');
+      },
+      getUtteranceByIdempotency: async () => {
+        throw new Error('IndexedDB unavailable');
+      },
+      putUtterance: async () => {
+        throw new Error('IndexedDB unavailable');
+      },
+      getUsage: async () => {
+        throw new Error('IndexedDB unavailable');
+      },
+      putUsage: async () => {
+        throw new Error('IndexedDB unavailable');
+      },
+    };
+
+    const api = createTalkApi({
+      store: createResilientTalkStore(broken, fallback),
+      catalog,
+      now: () => new Date('2026-09-01T15:00:00.000Z'),
+      id: (() => {
+        let n = 0;
+        return () => `resilient-${++n}`;
+      })(),
+    });
+
+    const pins = await api.listPins();
+    expect(pins.map((pin) => pin.custom_text)).toEqual(['Thank you', 'Bathroom', 'Help']);
+    const session = await api.createSession();
+    const result = await api.createUtterance(
+      session.id,
+      { direction: 'pin', raw_input: { pin_id: pins[0].id } },
+      'resilient-utterance',
+    );
+    expect(result.utterance.output_text).toBe('Thank you');
   });
 });

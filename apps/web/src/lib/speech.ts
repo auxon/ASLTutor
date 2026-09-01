@@ -52,8 +52,19 @@ export function startSpeechRecognition(options: {
     options.onEnd?.();
   };
 
-  recognition.start();
+  try {
+    recognition.start();
+  } catch (error) {
+    options.onError?.(error instanceof Error ? error.message : 'Could not start microphone');
+    return null;
+  }
   return {
-    stop: () => recognition.stop(),
+    stop: () => {
+      try {
+        recognition.stop();
+      } catch {
+        /* already stopped */
+      }
+    },
   };
 }

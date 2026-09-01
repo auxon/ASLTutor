@@ -41,13 +41,15 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Bump with SW_RELEASE in main.tsx so old precaches are discarded.
+        cacheId: 'signflow-asl-talk-shell-2',
         // Do not precache multi‑MB mediapipe wasm/model — runtime cache instead.
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest}'],
         globIgnores: ['**/mediapipe/**'],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
-        navigateFallback: 'index.html',
+        navigateFallback: `${ASL_BASE_PATH}index.html`,
         navigateFallbackDenylist: [/^\/ASLTutor\/mediapipe\//],
         runtimeCaching: [
           {

@@ -5,6 +5,7 @@ const FOOTER_LINKS = [
   { to: '/lessons', label: 'Lessons' },
   { to: '/dictionary', label: 'Dictionary' },
   { to: '/practice', label: 'Practice' },
+  { to: '/talk', label: 'Talk' },
   { to: '/progress', label: 'Progress' },
 ];
 

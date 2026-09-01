@@ -1,6 +1,8 @@
 export { getTalkApi, resetTalkApiForTests } from './client';
 export { createTalkApi } from './handlers';
-export { createMemoryTalkStore } from './store';
+export { createMemoryTalkStore, createResilientTalkStore } from './store';
+export { DEFAULT_TALK_PIN_DEFS, fallbackTalkPins } from './defaults';
+export { newTalkId } from './ids';
 export { catalogFromDictionary, dictionaryCatalog } from './catalog';
 export { mapTextToSigns, formatGlossToEnglish, pinLabel } from './mapper';
 export {

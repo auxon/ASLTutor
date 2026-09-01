@@ -22,6 +22,43 @@ export interface TalkStore {
   putUsage(usage: UsageCounter): Promise<void>;
 }
 
+/**
+ * Prefer IndexedDB, but switch to an in-memory store after the first failure
+ * so Talk still mounts when Dexie/private-mode/upgrade errors.
+ */
+export function createResilientTalkStore(primary: TalkStore, fallback: TalkStore): TalkStore {
+  let active: TalkStore = primary;
+  let usingFallback = false;
+
+  async function call<T>(op: (store: TalkStore) => Promise<T>): Promise<T> {
+    if (usingFallback) return op(active);
+    try {
+      return await op(primary);
+    } catch {
+      usingFallback = true;
+      active = fallback;
+      return op(fallback);
+    }
+  }
+
+  return {
+    getProfile: (userId) => call((store) => store.getProfile(userId)),
+    putProfile: (profile) => call((store) => store.putProfile(profile)),
+    listPins: (userId) => call((store) => store.listPins(userId)),
+    getPin: (id) => call((store) => store.getPin(id)),
+    putPin: (pin) => call((store) => store.putPin(pin)),
+    deletePin: (id) => call((store) => store.deletePin(id)),
+    getSession: (id) => call((store) => store.getSession(id)),
+    putSession: (session) => call((store) => store.putSession(session)),
+    listUtterances: (sessionId) => call((store) => store.listUtterances(sessionId)),
+    getUtteranceByIdempotency: (sessionId, key) =>
+      call((store) => store.getUtteranceByIdempotency(sessionId, key)),
+    putUtterance: (utterance) => call((store) => store.putUtterance(utterance)),
+    getUsage: (userId, day) => call((store) => store.getUsage(userId, day)),
+    putUsage: (usage) => call((store) => store.putUsage(usage)),
+  };
+}
+
 export function createMemoryTalkStore(): TalkStore {
   const profiles = new Map<string, TalkProfile>();
   const pins = new Map<string, PhrasePin>();
